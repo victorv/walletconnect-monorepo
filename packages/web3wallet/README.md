@@ -1,3 +1,7 @@
+# Deprecation Warning ⚠️⚠️⚠️
+
+Web3Wallet package is deprecated. Please use `@reown/walletkit` instead. [Migration guide link](https://docs.reown.com/walletkit/upgrade/from-web3wallet-web)
+
 # @walletconnect/web3wallet
 
 ## Description
