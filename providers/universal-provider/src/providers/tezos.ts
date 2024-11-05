@@ -12,8 +12,7 @@ import {
   SubProviderOpts,
 } from "../types";
 
-import { getRpcUrl } from "../utils";
-import { getGlobal } from "../utils";
+import { getRpcUrl, getGlobal } from "../utils";
 
 class TezosProvider implements IProvider {
   public name = "tezos";
