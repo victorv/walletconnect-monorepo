@@ -581,6 +581,7 @@ export class EthereumProvider implements IEthereumProvider {
       storageOptions: opts.storageOptions,
       customStoragePrefix: opts.customStoragePrefix,
       telemetryEnabled: opts.telemetryEnabled,
+      logger: opts.logger,
     });
     this.registerEventListeners();
     await this.loadPersistedSession();
