@@ -26,12 +26,22 @@ describe("Canary", () => {
   const metric_prefix = "HappyPath.connects";
   describe("HappyPath", () => {
     it("connects", async () => {
+      const initStart = Date.now();
+      const handshakeClient = await SignClient.init({
+        ...TEST_SIGN_CLIENT_OPTIONS_A,
+        logger,
+      });
+      const initLatencyMs = Date.now() - initStart;
+      const handshakeStart = Date.now();
+      await handshakeClient.core.relayer.transportOpen();
+      const handshakeLatencyMs = Date.now() - handshakeStart;
+      await handshakeClient.core.relayer.transportClose();
+
       const start = Date.now();
       const A = await SignClient.init({
         ...TEST_SIGN_CLIENT_OPTIONS_A,
         logger,
       });
-      const handshakeLatencyMs = Date.now() - start;
 
       const B = await SignClient.init({
         ...TEST_SIGN_CLIENT_OPTIONS_B,
@@ -80,6 +90,7 @@ describe("Canary", () => {
           successful,
           latencyMs,
           [
+            { initLatency: initLatencyMs },
             { handshakeLatency: handshakeLatencyMs },
             { proposePairingLatency: clientAConnectLatencyMs },
             { settlePairingLatency: settlePairingLatencyMs - clientAConnectLatencyMs },
