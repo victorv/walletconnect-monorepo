@@ -37,7 +37,6 @@ describe("Canary", () => {
       const handshakeLatencyMs = Date.now() - handshakeStart;
       await handshakeClient.core.relayer.transportClose();
 
-      const start = Date.now();
       const A = await SignClient.init({
         ...TEST_SIGN_CLIENT_OPTIONS_A,
         logger,
@@ -47,6 +46,9 @@ describe("Canary", () => {
         ...TEST_SIGN_CLIENT_OPTIONS_B,
         logger,
       });
+
+      const start = Date.now();
+
       const clients = { A, B };
       log(
         `Clients initialized (relay '${TEST_RELAY_URL}'), client ids: A:'${await clients.A.core.crypto.getClientId()}';B:'${await clients.B.core.crypto.getClientId()}'`,
