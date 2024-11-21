@@ -41,7 +41,9 @@ import {
   formatRelayRpcUrl,
   isOnline,
   subscribeToNetworkChange,
-  getBundleId,
+  getAppId,
+  isAndroid,
+  isIos,
   getInternalError,
   isNode,
   calcExpiry,
@@ -82,6 +84,7 @@ export class Relayer extends IRelayer {
 
   private relayUrl: string;
   private projectId: string | undefined;
+  private packageName: string | undefined;
   private bundleId: string | undefined;
   private connectionStatusPollingInterval = 20;
   private staleConnectionErrors = ["socket hang up", "stalled", "interrupted"];
@@ -115,7 +118,12 @@ export class Relayer extends IRelayer {
 
     this.relayUrl = opts?.relayUrl || RELAYER_DEFAULT_RELAY_URL;
     this.projectId = opts.projectId;
-    this.bundleId = getBundleId();
+
+    if (isAndroid()) {
+      this.packageName = getAppId();
+    } else if (isIos()) {
+      this.bundleId = getAppId();
+    }
 
     // re-assigned during init()
     this.provider = {} as IJsonRpcProvider;
@@ -457,6 +465,7 @@ export class Relayer extends IRelayer {
           auth,
           useOnCloseEvent: true,
           bundleId: this.bundleId,
+          packageName: this.packageName,
         }),
       ),
     );
