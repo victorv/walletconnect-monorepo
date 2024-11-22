@@ -386,42 +386,53 @@ export class Relayer extends IRelayer {
 
     this.connectionAttemptInProgress = true;
     this.transportExplicitlyClosed = false;
-    try {
-      await new Promise<void>(async (resolve, reject) => {
-        const onDisconnect = () => {
-          this.provider.off(RELAYER_PROVIDER_EVENTS.disconnect, onDisconnect);
-          reject(new Error(`Connection interrupted while trying to subscribe`));
-        };
-        this.provider.on(RELAYER_PROVIDER_EVENTS.disconnect, onDisconnect);
+    let attempt = 1;
 
-        await createExpiringPromise(
-          this.provider.connect(),
-          toMiliseconds(ONE_MINUTE),
-          `Socket stalled when trying to connect to ${this.relayUrl}`,
-        )
-          .catch((e) => {
-            reject(e);
-          })
-          .finally(() => {
-            clearTimeout(this.reconnectTimeout);
-            this.reconnectTimeout = undefined;
+    while (attempt < 6) {
+      try {
+        await new Promise<void>(async (resolve, reject) => {
+          const onDisconnect = () => {
+            this.provider.off(RELAYER_PROVIDER_EVENTS.disconnect, onDisconnect);
+            reject(new Error(`Connection interrupted while trying to subscribe`));
+          };
+          this.provider.on(RELAYER_PROVIDER_EVENTS.disconnect, onDisconnect);
+
+          await createExpiringPromise(
+            this.provider.connect(),
+            toMiliseconds(ONE_MINUTE),
+            `Socket stalled when trying to connect to ${this.relayUrl}`,
+          )
+            .catch((e) => {
+              reject(e);
+            })
+            .finally(() => {
+              clearTimeout(this.reconnectTimeout);
+              this.reconnectTimeout = undefined;
+            });
+          this.subscriber.start().catch((error) => {
+            this.logger.error(error);
+            this.onDisconnectHandler();
           });
-        this.subscriber.start().catch((error) => {
-          this.logger.error(error);
-          this.onDisconnectHandler();
+          this.hasExperiencedNetworkDisruption = false;
+          resolve();
         });
-        this.hasExperiencedNetworkDisruption = false;
-        resolve();
-      });
-    } catch (e) {
-      this.logger.error(e);
-      const error = e as Error;
-      this.hasExperiencedNetworkDisruption = true;
-      if (!this.isConnectionStalled(error.message)) {
-        throw e;
+      } catch (e) {
+        this.logger.error(e);
+        const error = e as Error;
+        this.hasExperiencedNetworkDisruption = true;
+        if (!this.isConnectionStalled(error.message)) {
+          throw e;
+        }
+      } finally {
+        this.connectionAttemptInProgress = false;
       }
-    } finally {
-      this.connectionAttemptInProgress = false;
+
+      if (this.connected) {
+        break;
+      }
+
+      await new Promise((resolve) => setTimeout(resolve, toMiliseconds(attempt * 1)));
+      attempt++;
     }
   }
 
