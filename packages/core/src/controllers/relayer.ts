@@ -1,3 +1,4 @@
+/* eslint-disable no-console */
 import { EventEmitter } from "events";
 import { JsonRpcProvider } from "@walletconnect/jsonrpc-provider";
 import {
@@ -101,6 +102,7 @@ export class Relayer extends IRelayer {
    */
   private heartBeatTimeout = toMiliseconds(THIRTY_SECONDS + ONE_SECOND);
   private reconnectTimeout: NodeJS.Timeout | undefined;
+  private connectPromise: Promise<void> | undefined;
 
   constructor(opts: RelayerOptions) {
     super(opts);
@@ -301,7 +303,77 @@ export class Relayer extends IRelayer {
     await this.transportDisconnect();
   }
 
-  public async transportOpen(relayUrl?: string) {
+  async transportOpen(relayUrl?: string) {
+    const random = Math.floor(Math.random() * 1e3);
+    if (this.connectPromise) {
+      console.log(`Waiting for existing connection attempt to resolve... :${random}`);
+      await this.connectPromise;
+    } else {
+      this.connectPromise = new Promise(async (resolve, reject) => {
+        await this.connect(relayUrl)
+          .then(resolve)
+          .catch(reject)
+          .finally(() => {
+            this.connectPromise = undefined;
+          });
+      });
+      await this.connectPromise;
+    }
+    if (!this.connected) {
+      throw new Error(`Couldn't establish socket connection to the relay server: ${this.relayUrl}`);
+    }
+  }
+
+  public async restartTransport(relayUrl?: string) {
+    console.log("Restarting transport...");
+    if (this.connectionAttemptInProgress) return;
+    this.relayUrl = relayUrl || this.relayUrl;
+    await this.confirmOnlineStateOrThrow();
+    await this.transportClose();
+    await this.transportOpen();
+  }
+
+  public async confirmOnlineStateOrThrow() {
+    if (await isOnline()) return;
+    throw new Error("No internet connection detected. Please restart your network and try again.");
+  }
+
+  public async handleBatchMessageEvents(messages: RelayerTypes.MessageEvent[]) {
+    if (messages?.length === 0) {
+      this.logger.trace("Batch message events is empty. Ignoring...");
+      return;
+    }
+    const sortedMessages = messages.sort((a, b) => a.publishedAt - b.publishedAt);
+    this.logger.trace(`Batch of ${sortedMessages.length} message events sorted`);
+    for (const message of sortedMessages) {
+      try {
+        await this.onMessageEvent(message);
+      } catch (e) {
+        this.logger.warn(e);
+      }
+    }
+    this.logger.trace(`Batch of ${sortedMessages.length} message events processed`);
+  }
+
+  public async onLinkMessageEvent(
+    messageEvent: RelayerTypes.MessageEvent,
+    opts: { sessionExists: boolean },
+  ) {
+    const { topic } = messageEvent;
+
+    if (!opts.sessionExists) {
+      const expiry = calcExpiry(FIVE_MINUTES);
+      const pairing = { topic, expiry, relay: { protocol: "irn" }, active: false };
+      await this.core.pairing.pairings.set(topic, pairing);
+    }
+
+    this.events.emit(RELAYER_EVENTS.message, messageEvent);
+    await this.recordMessageEvent(messageEvent);
+  }
+
+  // ---------- Private ----------------------------------------------- //
+
+  private async connect(relayUrl?: string) {
     await this.confirmOnlineStateOrThrow();
     if (relayUrl && relayUrl !== this.relayUrl) {
       this.relayUrl = relayUrl;
@@ -353,53 +425,6 @@ export class Relayer extends IRelayer {
     }
   }
 
-  public async restartTransport(relayUrl?: string) {
-    if (this.connectionAttemptInProgress) return;
-    this.relayUrl = relayUrl || this.relayUrl;
-    await this.confirmOnlineStateOrThrow();
-    await this.transportClose();
-    await this.transportOpen();
-  }
-
-  public async confirmOnlineStateOrThrow() {
-    if (await isOnline()) return;
-    throw new Error("No internet connection detected. Please restart your network and try again.");
-  }
-
-  public async handleBatchMessageEvents(messages: RelayerTypes.MessageEvent[]) {
-    if (messages?.length === 0) {
-      this.logger.trace("Batch message events is empty. Ignoring...");
-      return;
-    }
-    const sortedMessages = messages.sort((a, b) => a.publishedAt - b.publishedAt);
-    this.logger.trace(`Batch of ${sortedMessages.length} message events sorted`);
-    for (const message of sortedMessages) {
-      try {
-        await this.onMessageEvent(message);
-      } catch (e) {
-        this.logger.warn(e);
-      }
-    }
-    this.logger.trace(`Batch of ${sortedMessages.length} message events processed`);
-  }
-
-  public async onLinkMessageEvent(
-    messageEvent: RelayerTypes.MessageEvent,
-    opts: { sessionExists: boolean },
-  ) {
-    const { topic } = messageEvent;
-
-    if (!opts.sessionExists) {
-      const expiry = calcExpiry(FIVE_MINUTES);
-      const pairing = { topic, expiry, relay: { protocol: "irn" }, active: false };
-      await this.core.pairing.pairings.set(topic, pairing);
-    }
-
-    this.events.emit(RELAYER_EVENTS.message, messageEvent);
-    await this.recordMessageEvent(messageEvent);
-  }
-
-  // ---------- Private ----------------------------------------------- //
   /*
    * In Node, we must detect when the connection is stalled and terminate it.
    * The logic is, if we don't receive ping from the relay within a certain time, we terminate the connection.

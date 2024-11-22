@@ -1,3 +1,4 @@
+/* eslint-disable no-console */
 import { EventEmitter } from "events";
 import { HEARTBEAT_EVENTS } from "@walletconnect/heartbeat";
 import { ErrorResponse, RequestArguments } from "@walletconnect/jsonrpc-types";
@@ -249,7 +250,10 @@ export class Subscriber extends ISubscriber {
         return subId;
       }
       const subscribe = createExpiringPromise(
-        this.relayer.request(request).catch((e) => this.logger.warn(e)),
+        this.relayer.request(request).catch((e) => {
+          console.log("error", e);
+          this.logger.warn(e);
+        }),
         this.subscribeTimeout,
         `Subscribing to ${topic} failed, please try again`,
       );
@@ -433,6 +437,7 @@ export class Subscriber extends ISubscriber {
       if (typeof persisted === "undefined") return;
       if (!persisted.length) return;
       if (this.subscriptions.size) {
+        console.log("RESTORE_WILL_OVERRIDE", persisted, this.subscriptions.values());
         const { message } = getInternalError("RESTORE_WILL_OVERRIDE", this.name);
         this.logger.error(message);
         this.logger.error(`${this.name}: ${JSON.stringify(this.values)}`);
