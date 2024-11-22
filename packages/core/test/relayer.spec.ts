@@ -17,7 +17,7 @@ import { disconnectSocket, TEST_CORE_OPTIONS, throttle } from "./shared";
 import { ICore, IRelayer, ISubscriber } from "@walletconnect/types";
 import Sinon from "sinon";
 import { JsonRpcRequest } from "@walletconnect/jsonrpc-utils";
-import { generateRandomBytes32, hashMessage } from "@walletconnect/utils";
+import { createExpiringPromise, generateRandomBytes32, hashMessage } from "@walletconnect/utils";
 
 describe("Relayer", () => {
   const logger = pino(getDefaultLoggerOptions({ level: CORE_DEFAULT.logger }));
@@ -330,10 +330,26 @@ describe("Relayer", () => {
 
       it("should restart transport after connection drop", async () => {
         const randomSessionIdentifier = relayer.core.crypto.randomSessionIdentifier;
-        await relayer.provider.connection.close();
-        expect(relayer.connected).to.be.false;
-        await throttle(1000);
-        expect(relayer.connected).to.be.true;
+
+        const timeout = setTimeout(() => {
+          throw new Error("Connection did not restart after disconnect");
+        }, 5_001);
+        await Promise.all([
+          new Promise<void>((resolve) => {
+            relayer.once(RELAYER_EVENTS.connect, () => {
+              expect(relayer.connected).to.be.true;
+              resolve();
+            });
+          }),
+          new Promise<void>((resolve) => {
+            relayer.once(RELAYER_EVENTS.disconnect, () => {
+              expect(relayer.connected).to.be.false;
+              resolve();
+            });
+          }),
+          relayer.provider.connection.close(),
+        ]);
+        clearTimeout(timeout);
         // the identifier should be the same
         expect(relayer.core.crypto.randomSessionIdentifier).to.eq(randomSessionIdentifier);
       });
