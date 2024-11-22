@@ -20,6 +20,7 @@ import {
   createExpiringPromise,
   hashMessage,
   isValidArray,
+  areArraysEqual,
 } from "@walletconnect/utils";
 import {
   CORE_STORAGE_PREFIX,
@@ -436,7 +437,10 @@ export class Subscriber extends ISubscriber {
       const persisted = await this.getRelayerSubscriptions();
       if (typeof persisted === "undefined") return;
       if (!persisted.length) return;
-      if (this.subscriptions.size) {
+      if (
+        this.subscriptions.size &&
+        !areArraysEqual(persisted, Array.from(this.subscriptions.values()))
+      ) {
         console.log("RESTORE_WILL_OVERRIDE", persisted, this.subscriptions.values());
         const { message } = getInternalError("RESTORE_WILL_OVERRIDE", this.name);
         this.logger.error(message);

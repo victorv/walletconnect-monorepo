@@ -133,7 +133,7 @@ export class Relayer extends IRelayer {
       try {
         await this.transportOpen();
       } catch (e) {
-        this.logger.warn(e);
+        this.logger.warn(e, (e as Error)?.message);
       }
     }
   }
@@ -285,7 +285,7 @@ export class Relayer extends IRelayer {
           Array.from(this.requestsInFlight.values()).map((request) => request.promise),
         );
       } catch (e) {
-        this.logger.warn(e);
+        this.logger.warn(e, (e as Error)?.message);
       }
     }
 
@@ -349,7 +349,7 @@ export class Relayer extends IRelayer {
       try {
         await this.onMessageEvent(message);
       } catch (e) {
-        this.logger.warn(e);
+        this.logger.warn(e, (e as Error)?.message);
       }
     }
     this.logger.trace(`Batch of ${sortedMessages.length} message events processed`);
@@ -410,14 +410,14 @@ export class Relayer extends IRelayer {
               this.reconnectTimeout = undefined;
             });
           this.subscriber.start().catch((error) => {
-            this.logger.error(error);
+            this.logger.error(error, (error as Error)?.message);
             this.onDisconnectHandler();
           });
           this.hasExperiencedNetworkDisruption = false;
           resolve();
         });
       } catch (e) {
-        this.logger.error(e);
+        this.logger.error(e, (e as Error)?.message);
         const error = e as Error;
         this.hasExperiencedNetworkDisruption = true;
         if (!this.isConnectionStalled(error.message)) {
@@ -455,7 +455,7 @@ export class Relayer extends IRelayer {
       }
       this.resetPingTimeout();
     } catch (e) {
-      this.logger.warn(e);
+      this.logger.warn(e, (e as Error)?.message);
     }
   }
 
@@ -468,7 +468,7 @@ export class Relayer extends IRelayer {
         this.provider?.connection?.socket?.terminate();
       }, this.heartBeatTimeout);
     } catch (e) {
-      this.logger.warn(e);
+      this.logger.warn(e, (e as Error)?.message);
     }
   };
 
@@ -582,7 +582,7 @@ export class Relayer extends IRelayer {
   };
 
   private onProviderErrorHandler = (error: Error) => {
-    this.logger.error(error);
+    this.logger.error(error, (error as Error)?.message);
     this.events.emit(RELAYER_EVENTS.error, error);
     // close the transport when a fatal error is received as there's no way to recover from it
     // usual cases are missing/invalid projectId, expired jwt token, invalid origin etc
@@ -618,7 +618,9 @@ export class Relayer extends IRelayer {
         await this.transportDisconnect();
         this.transportExplicitlyClosed = false;
       } else {
-        await this.restartTransport().catch((error) => this.logger.error(error));
+        await this.restartTransport().catch((error) =>
+          this.logger.error(error, (error as Error)?.message),
+        );
       }
     });
   }
@@ -632,7 +634,9 @@ export class Relayer extends IRelayer {
     if (this.transportExplicitlyClosed) return;
     if (this.reconnectTimeout) return;
     this.reconnectTimeout = setTimeout(async () => {
-      await this.transportOpen().catch((error) => this.logger.error(error));
+      await this.transportOpen().catch((error) =>
+        this.logger.error(error, (error as Error)?.message),
+      );
     }, toMiliseconds(RELAYER_RECONNECT_TIMEOUT));
   }
 
