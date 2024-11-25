@@ -636,6 +636,8 @@ export class Relayer extends IRelayer {
     this.connectionAttemptInProgress = false;
     if (this.transportExplicitlyClosed) return;
     if (this.reconnectTimeout) return;
+    //@ts-expect-error - .cached is private
+    if (this.subscriber.cached === 0) return;
     this.reconnectTimeout = setTimeout(async () => {
       await this.transportOpen().catch((error) =>
         this.logger.error(error, (error as Error)?.message),

@@ -271,6 +271,7 @@ export class Subscriber extends ISubscriber {
             5_000,
             `Subscribing to ${topic} failed, please try again ${random}`,
           );
+          console.log(`rpc subscribe result ${random}`, result);
           this.events.removeListener(SUBSCRIBER_EVENTS.created, onSubscribe);
           resolve(result);
         } catch (err) {}
