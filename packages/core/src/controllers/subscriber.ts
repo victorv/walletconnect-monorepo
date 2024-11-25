@@ -314,8 +314,9 @@ export class Subscriber extends ISubscriber {
         this.relayer.request(request).catch((e) => this.logger.warn(e)),
         this.subscribeTimeout,
       );
-      console.log("rpcBatchSubscribe result", subscribe);
-      return await subscribe;
+      const res = await subscribe;
+      console.log("rpcBatchSubscribe result", subscriptions);
+      return res;
     } catch (err) {
       this.relayer.events.emit(RELAYER_EVENTS.connection_stalled);
     }
