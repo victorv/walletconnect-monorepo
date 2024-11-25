@@ -165,7 +165,7 @@ export class Relayer extends IRelayer {
 
   public async subscribe(topic: string, opts?: RelayerTypes.SubscribeOptions) {
     this.isInitialized();
-    if (opts?.transportType === "relay") {
+    if (!opts?.transportType || opts?.transportType === "relay") {
       await this.toEstablishConnection();
     }
     // throw unless explicitly set to false
@@ -177,6 +177,7 @@ export class Relayer extends IRelayer {
     let id = this.subscriber.topicMap.get(topic)?.[0] || "";
     let resolvePromise: () => void;
     const onSubCreated = (subscription: SubscriberTypes.Active) => {
+      console.log("onSubCreated", subscription);
       if (subscription.topic === topic) {
         this.subscriber.off(SUBSCRIBER_EVENTS.created, onSubCreated);
         resolvePromise();

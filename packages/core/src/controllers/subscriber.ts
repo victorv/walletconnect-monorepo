@@ -97,6 +97,7 @@ export class Subscriber extends ISubscriber {
 
   public subscribe: ISubscriber["subscribe"] = async (topic, opts) => {
     this.isInitialized();
+    console.log("subscribe", topic);
     this.logger.debug(`Subscribing Topic`);
     this.logger.trace({ type: "method", method: "subscribe", params: { topic, opts } });
     try {
@@ -251,11 +252,11 @@ export class Subscriber extends ISubscriber {
         }, toMiliseconds(ONE_SECOND));
         return subId;
       }
-
+      console.log("rpcSubscribe", this.pending);
       const subscribePromise = new Promise(async (resolve) => {
         const onSubscribe = (subscription: SubscriberEvents.Created) => {
           console.log(`rpc subscribe, onSubscribe ${random}`, subscription, subId);
-          if (subscription.id === subId) {
+          if (subscription.topic === topic) {
             console.log(`rpc subscribed event via pending list ${random}`, subscription);
             this.events.removeListener(SUBSCRIBER_EVENTS.created, onSubscribe);
             resolve(subscription.id);
@@ -372,6 +373,7 @@ export class Subscriber extends ISubscriber {
   }
 
   private onSubscribe(id: string, params: SubscriberTypes.Params) {
+    console.log("onSubscribe", id, params.topic);
     this.setSubscription(id, { ...params, id });
     this.pending.delete(params.topic);
   }
@@ -413,6 +415,7 @@ export class Subscriber extends ISubscriber {
   }
 
   private addSubscription(id: string, subscription: SubscriberTypes.Active) {
+    console.log("addSubscription", id, subscription.topic);
     this.subscriptions.set(id, { ...subscription });
     this.topicMap.set(subscription.topic, id);
     this.events.emit(SUBSCRIBER_EVENTS.created, subscription);
@@ -516,8 +519,11 @@ export class Subscriber extends ISubscriber {
     this.onDisable();
   }
 
-  private async checkPending() {
-    if (!this.initialized || !this.relayer.connected) return;
+  private checkPending = async () => {
+    if (!this.initialized || !this.relayer.connected) {
+      console.log("checkPending", this.initialized, this.relayer.connected);
+      return;
+    }
 
     const pendingSubscriptions: SubscriberTypes.Params[] = [];
     this.pending.forEach((params) => {
@@ -531,9 +537,9 @@ export class Subscriber extends ISubscriber {
       await this.relayer.handleBatchMessageEvents(this.pendingBatchMessages);
       this.pendingBatchMessages = [];
     }
-  }
+  };
 
-  private registerEventListeners() {
+  private registerEventListeners = () => {
     this.relayer.core.heartbeat.on(HEARTBEAT_EVENTS.pulse, async () => {
       await this.checkPending();
     });
@@ -549,7 +555,7 @@ export class Subscriber extends ISubscriber {
       this.logger.debug({ type: "event", event: eventName, data: deletedEvent });
       await this.persist();
     });
-  }
+  };
 
   private isInitialized() {
     if (!this.initialized) {
