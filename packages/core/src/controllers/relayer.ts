@@ -308,6 +308,7 @@ export class Relayer extends IRelayer {
     if (this.connectPromise) {
       console.log(`Waiting for existing connection attempt to resolve... :${random}`);
       await this.connectPromise;
+      console.log(`Existing connection attempt resolved :${random}`);
     } else {
       this.connectPromise = new Promise(async (resolve, reject) => {
         await this.connect(relayUrl)

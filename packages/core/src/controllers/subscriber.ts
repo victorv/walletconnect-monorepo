@@ -253,6 +253,7 @@ export class Subscriber extends ISubscriber {
 
       const subscribePromise = new Promise(async (resolve) => {
         const onSubscribe = (subscription: SubscriberEvents.Created) => {
+          console.log("rpc subscribe, onSubscribe", subscription, subId);
           if (subscription.id === subId) {
             console.log("rpc subscribed event via pending list", subscription);
             this.events.removeListener(SUBSCRIBER_EVENTS.created, onSubscribe);
