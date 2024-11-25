@@ -542,7 +542,7 @@ export class Subscriber extends ISubscriber {
     console.log("pendingSubscriptions", pendingSubscriptions.length);
     this.batchSubscribeAttempts++;
     await this.batchSubscribe(pendingSubscriptions);
-
+    this.batchSubscribeAttempts = 0;
     if (this.pendingBatchMessages.length) {
       await this.relayer.handleBatchMessageEvents(this.pendingBatchMessages);
       this.pendingBatchMessages = [];
