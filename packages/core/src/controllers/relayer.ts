@@ -429,6 +429,7 @@ export class Relayer extends IRelayer {
       }
 
       if (this.connected) {
+        console.log(`Connected to ${this.relayUrl} successfully, attempt: ${attempt}`);
         break;
       }
 
