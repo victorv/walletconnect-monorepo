@@ -309,6 +309,7 @@ export class Subscriber extends ISubscriber {
     this.logger.debug(`Outgoing Relay Payload`);
     this.logger.trace({ type: "payload", direction: "outgoing", request });
     try {
+      console.log("rpcBatchSubscribe...", subscriptions.length);
       const subscribe = await createExpiringPromise(
         this.relayer.request(request).catch((e) => this.logger.warn(e)),
         this.subscribeTimeout,
@@ -512,6 +513,8 @@ export class Subscriber extends ISubscriber {
     this.pending.forEach((params) => {
       pendingSubscriptions.push(params);
     });
+
+    console.log("pendingSubscriptions", pendingSubscriptions.length);
     await this.batchSubscribe(pendingSubscriptions);
 
     if (this.pendingBatchMessages.length) {
