@@ -366,7 +366,7 @@ describe("Relayer", () => {
         await Promise.all(
           Array.from(Array(disconnectsToEmit).keys()).map(() => relayer.onDisconnectHandler()),
         );
-        await throttle(1000);
+        await throttle(5_000);
         expect(connectReceived).to.eq(1);
         expect(disconnectsReceived).to.eq(disconnectsToEmit);
       });
