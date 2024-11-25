@@ -403,7 +403,7 @@ export class Relayer extends IRelayer {
 
           await createExpiringPromise(
             this.provider.connect(),
-            15_00,
+            15_000,
             `Socket stalled when trying to connect to ${this.relayUrl}`,
           )
             .catch((e) => {
