@@ -586,7 +586,7 @@ export class Relayer extends IRelayer {
     this.events.emit(RELAYER_EVENTS.error, error);
     // close the transport when a fatal error is received as there's no way to recover from it
     // usual cases are missing/invalid projectId, expired jwt token, invalid origin etc
-    this.logger.info("Fatal socket error received, closing transport");
+    this.logger.fatal("Fatal socket error received, closing transport");
     this.transportClose();
   };
 
