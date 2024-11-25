@@ -80,7 +80,7 @@ export class Publisher extends IPublisher {
             tag,
             id,
             attestation: opts?.attestation,
-          }),
+          }).catch((e) => this.logger.warn(e, e?.message)),
           15_000,
         );
         await initialPublish
