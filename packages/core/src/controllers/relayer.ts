@@ -390,6 +390,7 @@ export class Relayer extends IRelayer {
 
     while (attempt < 6) {
       try {
+        console.log(`Attempting to connect to ${this.relayUrl}..., attempt: ${attempt}`);
         // Always create new socket instance when trying to connect because if the socket was dropped due to `socket hang up` exception
         // It wont be able to reconnect
         await this.createProvider();
@@ -637,8 +638,14 @@ export class Relayer extends IRelayer {
     this.connectionAttemptInProgress = false;
     if (this.transportExplicitlyClosed) return;
     if (this.reconnectTimeout) return;
-    //@ts-expect-error - .cached is private
-    if (this.subscriber.cached === 0) return;
+    if (
+      //@ts-expect-error - .cached is private
+      this.subscriber.cached === 0 &&
+      //@ts-expect-error - .cached is private
+      this.subscriber.pending === 0 &&
+      this.subscriber.subscriptions.size === 0
+    )
+      return;
     this.reconnectTimeout = setTimeout(async () => {
       await this.transportOpen().catch((error) =>
         this.logger.error(error, (error as Error)?.message),
