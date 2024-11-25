@@ -51,6 +51,7 @@ export class Subscriber extends ISubscriber {
   private clientId: string;
   private batchSubscribeTopicsLimit = 500;
   private pendingBatchMessages: RelayerTypes.MessageEvent[] = [];
+  private batchSubscribeAttempts = 0;
 
   constructor(public relayer: IRelayer, public logger: Logger) {
     super(relayer, logger);
@@ -521,8 +522,16 @@ export class Subscriber extends ISubscriber {
 
   private checkPending = async () => {
     if (this.pending.size === 0 && (!this.initialized || !this.relayer.connected)) {
-      console.log("checkPending", this.initialized, this.relayer.connected, this.pending.size);
       return;
+    }
+
+    if (this.batchSubscribeAttempts > 3) {
+      console.log(
+        "batchSubscribeAttempts limit reached, restarting transport",
+        this.batchSubscribeAttempts,
+      );
+      this.batchSubscribeAttempts = 0;
+      return this.relayer.restartTransport().catch((e) => this.logger.error(e, e?.message));
     }
 
     const pendingSubscriptions: SubscriberTypes.Params[] = [];
@@ -531,6 +540,7 @@ export class Subscriber extends ISubscriber {
     });
 
     console.log("pendingSubscriptions", pendingSubscriptions.length);
+    this.batchSubscribeAttempts++;
     await this.batchSubscribe(pendingSubscriptions);
 
     if (this.pendingBatchMessages.length) {
