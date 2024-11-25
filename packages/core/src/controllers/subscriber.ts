@@ -250,14 +250,36 @@ export class Subscriber extends ISubscriber {
         }, toMiliseconds(ONE_SECOND));
         return subId;
       }
+
+      const subscribePromise = new Promise(async (resolve) => {
+        const onSubscribe = (subscription: SubscriberEvents.Created) => {
+          if (subscription.id === subId) {
+            console.log("rpc subscribed event via pending list", subscription);
+            this.events.removeListener(SUBSCRIBER_EVENTS.created, onSubscribe);
+            resolve(subscription.id);
+          }
+        };
+        this.events.on(SUBSCRIBER_EVENTS.created, onSubscribe);
+        try {
+          const result = await createExpiringPromise(
+            this.relayer.request(request).catch((e) => {
+              console.log("rpc subscribe error", e);
+              this.logger.warn(e, e?.message);
+            }),
+            5_000,
+            `Subscribing to ${topic} failed, please try again`,
+          );
+          this.events.removeListener(SUBSCRIBER_EVENTS.created, onSubscribe);
+          resolve(result);
+        } catch (err) {}
+      });
+
       const subscribe = createExpiringPromise(
-        this.relayer.request(request).catch((e) => {
-          console.log("error", e);
-          this.logger.warn(e);
-        }),
+        subscribePromise,
         this.subscribeTimeout,
         `Subscribing to ${topic} failed, please try again`,
       );
+
       const result = await subscribe;
       if (!result && shouldThrow) {
         throw new Error(`Subscribing to ${topic} failed, please try again`);
