@@ -62,12 +62,9 @@ export class Publisher extends IPublisher {
     const failedPublishMessage = `Failed to publish payload, please try again. id:${id} tag:${tag}`;
 
     try {
-      console.log("publishing", params);
       const publishPromise = new Promise(async (resolve) => {
         const onPublish = ({ id }: { id: string }) => {
-          console.log("onPublish received", params.opts.id, id, params.opts.id === id);
           if (params.opts.id === id) {
-            console.log("onPublish matched", params);
             this.removeRequestFromQueue(id);
             this.relayer.events.removeListener(RELAYER_EVENTS.publish, onPublish);
             resolve(params);
@@ -165,11 +162,9 @@ export class Publisher extends IPublisher {
     if (isUndefined(request.params?.tag)) delete request.params?.tag;
     this.logger.debug(`Outgoing Relay Payload`);
     this.logger.trace({ type: "message", direction: "outgoing", request });
-    console.log("publish request", request);
     const result = await this.relayer.request(request);
     this.relayer.events.emit(RELAYER_EVENTS.publish, params);
     this.logger.debug(`Successfully Published Payload`);
-    console.log("publish result", result);
     return result;
   }
 
