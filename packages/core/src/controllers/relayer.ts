@@ -412,10 +412,6 @@ export class Relayer extends IRelayer {
               clearTimeout(this.reconnectTimeout);
               this.reconnectTimeout = undefined;
             });
-          this.subscriber.start().catch((error) => {
-            this.logger.error(error, (error as Error)?.message);
-            this.onDisconnectHandler();
-          });
           this.hasExperiencedNetworkDisruption = false;
           resolve();
         });
@@ -575,6 +571,10 @@ export class Relayer extends IRelayer {
 
   private onConnectHandler = () => {
     this.logger.trace("relayer connected");
+    this.subscriber.start().catch((error) => {
+      this.logger.error(error, (error as Error)?.message);
+      this.restartTransport();
+    });
     this.startPingTimeout();
     this.events.emit(RELAYER_EVENTS.connect);
   };
