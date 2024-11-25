@@ -22,7 +22,7 @@ import {
 import { RelayJsonRpc } from "@walletconnect/relay-api";
 import {
   FIVE_MINUTES,
-  ONE_MINUTE,
+  // ONE_MINUTE,
   ONE_SECOND,
   THIRTY_SECONDS,
   toMiliseconds,
