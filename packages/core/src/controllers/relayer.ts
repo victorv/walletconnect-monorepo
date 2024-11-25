@@ -390,7 +390,7 @@ export class Relayer extends IRelayer {
 
     while (attempt < 6) {
       try {
-        console.log(`Attempting to connect to ${this.relayUrl}..., attempt: ${attempt}`);
+        this.logger.error({},`Connected to ${this.relayUrl} successfully, attempt: ${attempt}`);`Attempting to connect to ${this.relayUrl}..., attempt: ${attempt}`);
         // Always create new socket instance when trying to connect because if the socket was dropped due to `socket hang up` exception
         // It wont be able to reconnect
         await this.createProvider();
@@ -429,7 +429,7 @@ export class Relayer extends IRelayer {
       }
 
       if (this.connected) {
-        console.log(`Connected to ${this.relayUrl} successfully, attempt: ${attempt}`);
+        this.logger.error({}, `Connected to ${this.relayUrl} successfully, attempt: ${attempt}`);
         break;
       }
 
@@ -573,7 +573,7 @@ export class Relayer extends IRelayer {
   };
 
   private onConnectHandler = () => {
-    this.logger.trace("relayer connected");
+    this.logger.error({},"relayer connected");
     this.subscriber.start().catch((error) => {
       this.logger.error(error, (error as Error)?.message);
       this.restartTransport();
@@ -584,6 +584,7 @@ export class Relayer extends IRelayer {
 
   private onDisconnectHandler = () => {
     this.logger.trace("relayer disconnected");
+    this.logger.error({},"relayer disconnected");
     this.onProviderDisconnect();
   };
 
