@@ -226,6 +226,7 @@ export class Subscriber extends ISubscriber {
     relay: RelayerTypes.ProtocolOptions,
     opts?: RelayerTypes.SubscribeOptions,
   ) {
+    const random = Math.floor(Math.random() * 1000);
     if (opts?.transportType === TRANSPORT_TYPES.relay) {
       await this.restartToComplete();
     }
@@ -253,9 +254,9 @@ export class Subscriber extends ISubscriber {
 
       const subscribePromise = new Promise(async (resolve) => {
         const onSubscribe = (subscription: SubscriberEvents.Created) => {
-          console.log("rpc subscribe, onSubscribe", subscription, subId);
+          console.log(`rpc subscribe, onSubscribe ${random}`, subscription, subId);
           if (subscription.id === subId) {
-            console.log("rpc subscribed event via pending list", subscription);
+            console.log(`rpc subscribed event via pending list ${random}`, subscription);
             this.events.removeListener(SUBSCRIBER_EVENTS.created, onSubscribe);
             resolve(subscription.id);
           }
@@ -264,11 +265,11 @@ export class Subscriber extends ISubscriber {
         try {
           const result = await createExpiringPromise(
             this.relayer.request(request).catch((e) => {
-              console.log("rpc subscribe error", e);
+              console.log(`rpc subscribe error ${random}`, e);
               this.logger.warn(e, e?.message);
             }),
             5_000,
-            `Subscribing to ${topic} failed, please try again`,
+            `Subscribing to ${topic} failed, please try again ${random}`,
           );
           this.events.removeListener(SUBSCRIBER_EVENTS.created, onSubscribe);
           resolve(result);
@@ -278,17 +279,18 @@ export class Subscriber extends ISubscriber {
       const subscribe = createExpiringPromise(
         subscribePromise,
         this.subscribeTimeout,
-        `Subscribing to ${topic} failed, please try again`,
+        `Subscribing to ${topic} failed, please try again ${random}`,
       );
 
       const result = await subscribe;
       if (!result && shouldThrow) {
-        throw new Error(`Subscribing to ${topic} failed, please try again`);
+        throw new Error(`Subscribing to ${topic} failed, please try again ${random}`);
       }
       // return null to indicate that the subscription failed
       return result ? subId : null;
     } catch (err) {
       this.logger.debug(`Outgoing Relay Subscribe Payload stalled`);
+      console.log(`rpcSubscribe stalled ${random}`, err);
       this.relayer.events.emit(RELAYER_EVENTS.connection_stalled);
       if (shouldThrow) {
         throw err;
@@ -299,6 +301,7 @@ export class Subscriber extends ISubscriber {
 
   private async rpcBatchSubscribe(subscriptions: SubscriberTypes.Params[]) {
     if (!subscriptions.length) return;
+    const random = Math.floor(Math.random() * 1000);
     const relay = subscriptions[0].relay;
     const api = getRelayProtocolApi(relay!.protocol);
     const request: RequestArguments<RelayJsonRpc.BatchSubscribeParams> = {
@@ -310,15 +313,16 @@ export class Subscriber extends ISubscriber {
     this.logger.debug(`Outgoing Relay Payload`);
     this.logger.trace({ type: "payload", direction: "outgoing", request });
     try {
-      console.log("rpcBatchSubscribe...", subscriptions);
+      console.log(`rpcBatchSubscribe... ${random}`, subscriptions);
       const subscribe = await createExpiringPromise(
         this.relayer.request(request).catch((e) => this.logger.warn(e)),
         this.subscribeTimeout,
       );
       const res = await subscribe;
-      console.log("rpcBatchSubscribe result", res);
+      console.log(`rpcBatchSubscribe ${random} result`, res);
       return res;
     } catch (err) {
+      console.log(`rpcBatchSubscribe stalled ${random}`, err);
       this.relayer.events.emit(RELAYER_EVENTS.connection_stalled);
     }
   }
@@ -336,6 +340,7 @@ export class Subscriber extends ISubscriber {
     this.logger.debug(`Outgoing Relay Payload`);
     this.logger.trace({ type: "payload", direction: "outgoing", request });
     let result;
+    const random = Math.floor(Math.random() * 1000);
     try {
       const fetchMessagesPromise = await createExpiringPromise(
         this.relayer.request(request).catch((e) => this.logger.warn(e)),
@@ -345,6 +350,7 @@ export class Subscriber extends ISubscriber {
         messages: RelayerTypes.MessageEvent[];
       };
     } catch (err) {
+      console.log(`rpcBatchFetchMessages stalled ${random}`, err);
       this.relayer.events.emit(RELAYER_EVENTS.connection_stalled);
     }
     return result;
