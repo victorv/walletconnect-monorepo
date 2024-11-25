@@ -520,8 +520,8 @@ export class Subscriber extends ISubscriber {
   }
 
   private checkPending = async () => {
-    if (!this.initialized || !this.relayer.connected) {
-      console.log("checkPending", this.initialized, this.relayer.connected);
+    if (this.cached.length === 0 && (!this.initialized || !this.relayer.connected)) {
+      console.log("checkPending", this.initialized, this.relayer.connected, this.cached.length);
       return;
     }
 
