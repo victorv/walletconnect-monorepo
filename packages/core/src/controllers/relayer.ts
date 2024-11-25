@@ -623,6 +623,12 @@ export class Relayer extends IRelayer {
         );
       }
     });
+
+    this.events.on(RELAYER_EVENTS.connection_stalled, () => {
+      console.log("on Connection stalled");
+      this.hasExperiencedNetworkDisruption = true;
+      this.restartTransport().catch((error) => this.logger.error(error, (error as Error)?.message));
+    });
   }
 
   private async onProviderDisconnect() {
