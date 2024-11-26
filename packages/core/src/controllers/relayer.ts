@@ -218,7 +218,6 @@ export class Relayer extends IRelayer {
       //   )) as JsonRpcPayload;
       //   return publishResult;
       // };
-      this.logger.error({}, `relayer.request - attempt to publish... ${id}`);
 
       // /**
       //  * During publish, we must listen for any disconnect event and reject the promise, else the publish would hang indefinitely

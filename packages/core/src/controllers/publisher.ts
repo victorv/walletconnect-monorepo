@@ -162,7 +162,10 @@ export class Publisher extends IPublisher {
     if (isUndefined(request.params?.tag)) delete request.params?.tag;
     this.logger.debug(`Outgoing Relay Payload`);
     this.logger.trace({ type: "message", direction: "outgoing", request });
+
+    this.logger.error({}, `publisher - attempt to publish... ${id} 🔄`);
     const result = await this.relayer.request(request);
+    this.logger.error({}, `publisher - published ${id} ✅`);
     this.relayer.events.emit(RELAYER_EVENTS.publish, params);
     this.logger.debug(`Successfully Published Payload`);
     return result;
