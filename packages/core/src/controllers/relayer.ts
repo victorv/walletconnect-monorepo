@@ -212,7 +212,9 @@ export class Relayer extends IRelayer {
       const publish = async () => {
         if (publishResult) return publishResult;
         publishResult = (await createExpiringPromise(
-          this.provider.request(request),
+          new Promise((resolve, reject) => {
+            this.provider.request(request).then(resolve).catch(reject);
+          }),
           5_000,
           `request failed to publish: ${id}`,
         )) as JsonRpcPayload;
