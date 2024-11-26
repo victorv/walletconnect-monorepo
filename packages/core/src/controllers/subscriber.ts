@@ -531,7 +531,7 @@ export class Subscriber extends ISubscriber {
         this.batchSubscribeAttempts,
       );
       this.batchSubscribeAttempts = 0;
-      return this.relayer.restartTransport().catch((e) => this.logger.error(e, e?.message));
+      return this.relayer.transportOpen().catch((e) => this.logger.error(e, e?.message));
     }
 
     const pendingSubscriptions: SubscriberTypes.Params[] = [];

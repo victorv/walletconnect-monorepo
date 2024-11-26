@@ -177,7 +177,6 @@ export class Relayer extends IRelayer {
     let id = this.subscriber.topicMap.get(topic)?.[0] || "";
     let resolvePromise: () => void;
     const onSubCreated = (subscription: SubscriberTypes.Active) => {
-      console.log("onSubCreated", subscription);
       if (subscription.topic === topic) {
         this.subscriber.off(SUBSCRIBER_EVENTS.created, onSubCreated);
         resolvePromise();
@@ -222,14 +221,7 @@ export class Relayer extends IRelayer {
         promise: requestPromise,
         request,
       });
-      this.logger.trace(
-        {
-          id,
-          method: request.method,
-          topic: request.params?.topic,
-        },
-        "relayer.request - attempt to publish...",
-      );
+      this.logger.error({}, `relayer.request - attempt to publish... ${id}`);
 
       /**
        * During publish, we must listen for any disconnect event and reject the promise, else the publish would hang indefinitely
@@ -309,9 +301,9 @@ export class Relayer extends IRelayer {
   async transportOpen(relayUrl?: string) {
     const random = Math.floor(Math.random() * 1e3);
     if (this.connectPromise) {
-      console.log(`Waiting for existing connection attempt to resolve... :${random}`);
+      this.logger.error({}, `Waiting for existing connection attempt to resolve... :${random}`);
       await this.connectPromise;
-      console.log(`Existing connection attempt resolved :${random}`);
+      this.logger.error({}, `Existing connection attempt resolved :${random}`);
     } else {
       this.connectPromise = new Promise(async (resolve, reject) => {
         await this.connect(relayUrl)
@@ -329,7 +321,7 @@ export class Relayer extends IRelayer {
   }
 
   public async restartTransport(relayUrl?: string) {
-    console.log("Restarting transport...");
+    this.logger.error({}, "Restarting transport...");
     if (this.connectionAttemptInProgress) return;
     this.relayUrl = relayUrl || this.relayUrl;
     await this.confirmOnlineStateOrThrow();
@@ -576,7 +568,6 @@ export class Relayer extends IRelayer {
     this.logger.error({}, "relayer connected");
     this.subscriber.start().catch((error) => {
       this.logger.error(error, (error as Error)?.message);
-      this.restartTransport();
     });
     this.startPingTimeout();
     this.events.emit(RELAYER_EVENTS.connect);
@@ -625,7 +616,7 @@ export class Relayer extends IRelayer {
         await this.transportDisconnect();
         this.transportExplicitlyClosed = false;
       } else {
-        await this.restartTransport().catch((error) =>
+        await this.transportOpen().catch((error) =>
           this.logger.error(error, (error as Error)?.message),
         );
       }
