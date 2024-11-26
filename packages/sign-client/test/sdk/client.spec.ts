@@ -267,7 +267,7 @@ describe("Sign Client Integration", () => {
       expect(sessionWallet.sessionConfig).to.eql(sessionDapp.sessionConfig);
       await deleteClients({ A: dapp, B: wallet });
     });
-    it.skip("should use rejected tag for session_propose", async () => {
+    it("should use rejected tag for session_propose", async () => {
       const dapp = await SignClient.init({
         ...TEST_SIGN_CLIENT_OPTIONS,
         name: "dapp",
@@ -283,14 +283,17 @@ describe("Sign Client Integration", () => {
       expect(uri).to.exist;
       await Promise.all([
         new Promise<void>((resolve) => {
-          wallet.core.relayer.once(RELAYER_EVENTS.publish, (payload) => {
+          wallet.core.relayer.on(RELAYER_EVENTS.publish, (payload) => {
             const { opts } = payload;
             const expectedOpts = ENGINE_RPC_OPTS.wc_sessionPropose.reject;
             expect(opts).to.exist;
-            expect(opts.tag).to.eq(expectedOpts?.tag);
-            expect(opts.ttl).to.eq(expectedOpts?.ttl);
-            expect(opts.prompt).to.eq(expectedOpts?.prompt);
-            resolve();
+            if (
+              opts.tag === expectedOpts?.tag &&
+              opts.ttl === expectedOpts?.ttl &&
+              opts.prompt === expectedOpts?.prompt
+            ) {
+              resolve();
+            }
           });
         }),
         new Promise<void>((resolve) => {
