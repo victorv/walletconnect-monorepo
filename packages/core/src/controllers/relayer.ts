@@ -204,32 +204,7 @@ export class Relayer extends IRelayer {
     this.logger.debug(`Publishing Request Payload`);
     const id = request.id || (getBigIntRpcId().toString() as any);
     await this.toEstablishConnection();
-
     try {
-      // let publishResult: JsonRpcPayload;
-      // const publish = async () => {
-      //   if (publishResult) return publishResult;
-      //   publishResult = (await createExpiringPromise(
-      //     new Promise((resolve, reject) => {
-      //       this.provider.request(request).then(resolve).catch(reject);
-      //     }),
-      //     5_000,
-      //     `request failed to publish: ${id}`,
-      //   )) as JsonRpcPayload;
-      //   return publishResult;
-      // };
-
-      // /**
-      //  * During publish, we must listen for any disconnect event and reject the promise, else the publish would hang indefinitely
-      //  */
-      // const result = new Promise(async (resolve, reject) => {
-      //   const onDisconnect = () => {
-      //     reject(new Error(`relayer.request - publish interrupted, id: ${id}`));
-      //   };
-      //   this.provider.once(RELAYER_PROVIDER_EVENTS.disconnect, onDisconnect);
-      //   const res = await publish().catch(reject);
-      //   resolve(res);
-      // });
       this.logger.trace(
         {
           id,
