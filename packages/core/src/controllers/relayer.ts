@@ -89,7 +89,8 @@ export class Relayer extends IRelayer {
   private requestsInFlight = new Map<
     number,
     {
-      promise: Promise<any>;
+      // eslint-disable-next-line func-call-spacing
+      publish: () => Promise<JsonRpcPayload>;
       request: RequestArguments<RelayJsonRpc.SubscribeParams>;
     }
   >();
@@ -213,15 +214,22 @@ export class Relayer extends IRelayer {
     const id = request.id || (getBigIntRpcId().toString() as any);
     try {
       await this.toEstablishConnection();
-
-      const requestPromise = new Promise((resolve, reject) =>
-        this.provider.request(request).then(resolve).catch(reject),
-      );
+      let publishResult: JsonRpcPayload;
+      const publish = async () => {
+        if (publishResult) return publishResult;
+        publishResult = await this.provider.request(request);
+        return publishResult;
+      };
+      // new Promise((resolve, reject) =>
+      //   this.provider.request(request).then(resolve).catch(reject),
+      // );
       this.requestsInFlight.set(id, {
-        promise: requestPromise,
+        publish,
         request,
       });
       this.logger.error({}, `relayer.request - attempt to publish... ${id}`);
+
+      // this.requestPublishAttempts.set(id, (this.requestPublishAttempts.get(id) || 0) + 1);
 
       /**
        * During publish, we must listen for any disconnect event and reject the promise, else the publish would hang indefinitely
@@ -231,7 +239,7 @@ export class Relayer extends IRelayer {
           reject(new Error(`relayer.request - publish interrupted, id: ${id}`));
         };
         this.provider.on(RELAYER_PROVIDER_EVENTS.disconnect, onDisconnect);
-        const res = await requestPromise;
+        const res = await publish();
         this.provider.off(RELAYER_PROVIDER_EVENTS.disconnect, onDisconnect);
         resolve(res);
       });
@@ -277,7 +285,7 @@ export class Relayer extends IRelayer {
     if (!this.hasExperiencedNetworkDisruption && this.connected && this.requestsInFlight.size > 0) {
       try {
         await Promise.all(
-          Array.from(this.requestsInFlight.values()).map((request) => request.promise),
+          Array.from(this.requestsInFlight.values()).map((request) => request.publish()),
         );
       } catch (e) {
         this.logger.warn(e, (e as Error)?.message);
@@ -580,7 +588,7 @@ export class Relayer extends IRelayer {
   };
 
   private onProviderErrorHandler = (error: Error) => {
-    this.logger.error(error, (error as Error)?.message);
+    this.logger.fatal(error, `Fatal socket error: ${(error as Error)?.message}`);
     this.events.emit(RELAYER_EVENTS.error, error);
     // close the transport when a fatal error is received as there's no way to recover from it
     // usual cases are missing/invalid projectId, expired jwt token, invalid origin etc
