@@ -86,15 +86,6 @@ export class Relayer extends IRelayer {
   private bundleId: string | undefined;
   private staleConnectionErrors = ["socket hang up", "stalled", "interrupted"];
   private hasExperiencedNetworkDisruption = false;
-  private requestsInFlight = new Map<
-    number,
-    {
-      // eslint-disable-next-line func-call-spacing
-      publish: () => Promise<JsonRpcPayload>;
-      request: RequestArguments<RelayJsonRpc.SubscribeParams>;
-    }
-  >();
-
   private pingTimeout: NodeJS.Timeout | undefined;
   /**
    * the relay pings the client 30 seconds after the last message was received
@@ -103,6 +94,7 @@ export class Relayer extends IRelayer {
   private heartBeatTimeout = toMiliseconds(THIRTY_SECONDS + ONE_SECOND);
   private reconnectTimeout: NodeJS.Timeout | undefined;
   private connectPromise: Promise<void> | undefined;
+  private requestsInFlight = new Map<string, number>();
 
   constructor(opts: RelayerOptions) {
     super(opts);
@@ -214,20 +206,27 @@ export class Relayer extends IRelayer {
     const id = request.id || (getBigIntRpcId().toString() as any);
     try {
       await this.toEstablishConnection();
+      const attempt = this.requestsInFlight.get(id) || 0 + 1;
+      this.requestsInFlight.set(id, attempt);
       let publishResult: JsonRpcPayload;
       const publish = async () => {
         if (publishResult) return publishResult;
-        publishResult = await this.provider.request(request);
+        publishResult = (await createExpiringPromise(
+          this.provider.request(request),
+          5_000,
+          `request failed to publish: ${id}`,
+        )) as JsonRpcPayload;
         return publishResult;
       };
-      // new Promise((resolve, reject) =>
-      //   this.provider.request(request).then(resolve).catch(reject),
-      // );
-      this.requestsInFlight.set(id, {
-        publish,
-        request,
-      });
-      this.logger.error({}, `relayer.request - attempt to publish... ${id}`);
+      this.logger.error({}, `relayer.request - attempt to publish... ${id}, attempt: ${attempt}`);
+
+      if (attempt >= 3) {
+        this.transportOpen().catch((error) =>
+          this.logger.error(error, "req in flight attempt limit- " + (error as Error)?.message),
+        );
+        this.requestsInFlight.delete(id);
+        throw new Error(`relayer.request - failed to publish after 5 attempts, id: ${id}`);
+      }
 
       // this.requestPublishAttempts.set(id, (this.requestPublishAttempts.get(id) || 0) + 1);
 
@@ -255,8 +254,6 @@ export class Relayer extends IRelayer {
     } catch (e) {
       this.logger.debug(`Failed to Publish Request: ${id}`);
       throw e;
-    } finally {
-      this.requestsInFlight.delete(id);
     }
   };
 
@@ -282,16 +279,6 @@ export class Relayer extends IRelayer {
   }
 
   public async transportDisconnect() {
-    if (!this.hasExperiencedNetworkDisruption && this.connected && this.requestsInFlight.size > 0) {
-      try {
-        await Promise.all(
-          Array.from(this.requestsInFlight.values()).map((request) => request.publish()),
-        );
-      } catch (e) {
-        this.logger.warn(e, (e as Error)?.message);
-      }
-    }
-
     if (this.provider.disconnect && (this.hasExperiencedNetworkDisruption || this.connected)) {
       await createExpiringPromise(this.provider.disconnect(), 2000, "provider.disconnect()").catch(
         () => this.onProviderDisconnect(),
@@ -397,10 +384,9 @@ export class Relayer extends IRelayer {
 
         await new Promise<void>(async (resolve, reject) => {
           const onDisconnect = () => {
-            this.provider.off(RELAYER_PROVIDER_EVENTS.disconnect, onDisconnect);
             reject(new Error(`Connection interrupted while trying to subscribe`));
           };
-          this.provider.on(RELAYER_PROVIDER_EVENTS.disconnect, onDisconnect);
+          this.provider.once(RELAYER_PROVIDER_EVENTS.disconnect, onDisconnect);
 
           await createExpiringPromise(
             this.provider.connect(),
