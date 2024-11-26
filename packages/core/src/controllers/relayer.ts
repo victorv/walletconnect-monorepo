@@ -236,11 +236,11 @@ export class Relayer extends IRelayer {
        */
       const result = await new Promise(async (resolve, reject) => {
         const onDisconnect = () => {
+          this.requestsInFlight.delete(id);
           reject(new Error(`relayer.request - publish interrupted, id: ${id}`));
         };
-        this.provider.on(RELAYER_PROVIDER_EVENTS.disconnect, onDisconnect);
+        this.provider.once(RELAYER_PROVIDER_EVENTS.disconnect, onDisconnect);
         const res = await publish();
-        this.provider.off(RELAYER_PROVIDER_EVENTS.disconnect, onDisconnect);
         resolve(res);
       });
       this.logger.trace(
@@ -639,15 +639,8 @@ export class Relayer extends IRelayer {
     this.connectionAttemptInProgress = false;
     if (this.transportExplicitlyClosed) return;
     if (this.reconnectTimeout) return;
-    if (
-      //@ts-expect-error - .cached is private
-      this.subscriber.cached === 0 &&
-      //@ts-expect-error - .cached is private
-      this.subscriber.pending === 0 &&
-      this.subscriber.subscriptions.size === 0
-    )
-      return;
     this.reconnectTimeout = setTimeout(async () => {
+      clearTimeout(this.reconnectTimeout);
       await this.transportOpen().catch((error) =>
         this.logger.error(error, (error as Error)?.message),
       );
