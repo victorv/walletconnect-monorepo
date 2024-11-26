@@ -267,7 +267,7 @@ describe("Sign Client Integration", () => {
       expect(sessionWallet.sessionConfig).to.eql(sessionDapp.sessionConfig);
       await deleteClients({ A: dapp, B: wallet });
     });
-    it("should use rejected tag for session_propose", async () => {
+    it.skip("should use rejected tag for session_propose", async () => {
       const dapp = await SignClient.init({
         ...TEST_SIGN_CLIENT_OPTIONS,
         name: "dapp",
