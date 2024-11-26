@@ -222,7 +222,7 @@ export class Relayer extends IRelayer {
       /**
        * During publish, we must listen for any disconnect event and reject the promise, else the publish would hang indefinitely
        */
-      const result = await new Promise(async (resolve, reject) => {
+      const result = new Promise(async (resolve, reject) => {
         const onDisconnect = () => {
           reject(new Error(`relayer.request - publish interrupted, id: ${id}`));
         };
@@ -238,7 +238,7 @@ export class Relayer extends IRelayer {
         },
         "relayer.request - published",
       );
-      return result as JsonRpcPayload;
+      return (await result) as JsonRpcPayload;
     } catch (e) {
       this.logger.debug(`Failed to Publish Request: ${id}`);
       throw e;
