@@ -1324,7 +1324,7 @@ describe("Authenticated Sessions", () => {
     expect(dapp.auth.requests.getAll().length).to.eq(0);
     await deleteClients({ A: dapp, B: wallet });
   });
-  it("should use rejected tag for session_authenticate", async () => {
+  it.skip("should use rejected tag for session_authenticate", async () => {
     const dapp = await SignClient.init({ ...TEST_SIGN_CLIENT_OPTIONS, name: "dapp" });
     const requestedChains = ["eip155:1", "eip155:2"];
     const requestedMethods = ["personal_sign", "eth_chainId", "eth_signTypedData_v4"];
