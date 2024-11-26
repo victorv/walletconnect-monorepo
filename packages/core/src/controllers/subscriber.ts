@@ -190,7 +190,7 @@ export class Subscriber extends ISubscriber {
     return result;
   }
 
-  private onEnable() {
+  private reset() {
     this.cached = [];
     this.initialized = true;
   }
@@ -448,7 +448,7 @@ export class Subscriber extends ISubscriber {
   private restart = async () => {
     this.restartInProgress = true;
     await this.restore();
-    await this.reset();
+    await this.onRestart();
     this.restartInProgress = false;
   };
 
@@ -457,7 +457,7 @@ export class Subscriber extends ISubscriber {
     this.events.emit(SUBSCRIBER_EVENTS.sync);
   }
 
-  private async reset() {
+  private async onRestart() {
     if (this.cached.length) {
       const numOfBatches = Math.ceil(this.cached.length / this.batchSubscribeTopicsLimit);
       for (let i = 0; i < numOfBatches; i++) {
@@ -513,7 +513,7 @@ export class Subscriber extends ISubscriber {
 
   private async onConnect() {
     await this.restart();
-    this.onEnable();
+    this.reset();
   }
 
   private onDisconnect() {
