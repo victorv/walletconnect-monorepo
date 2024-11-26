@@ -5,7 +5,8 @@ export default defineConfig({
     "process.env.IS_VITEST": true,
   },
   test: {
-    testTimeout: 800_000,
-    hookTimeout: 800_000,
+    threads: false,
+    testTimeout: 300_000,
+    hookTimeout: 300_000,
   },
 });
