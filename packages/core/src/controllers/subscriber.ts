@@ -318,7 +318,12 @@ export class Subscriber extends ISubscriber {
     try {
       console.log(`rpcBatchSubscribe... ${random}`, subscriptions);
       const subscribe = await createExpiringPromise(
-        this.relayer.request(request).catch((e) => this.logger.warn(e)),
+        new Promise((resolve) => {
+          this.relayer
+            .request(request)
+            .catch((e) => this.logger.warn(e))
+            .then(resolve);
+        }),
         this.subscribeTimeout,
       );
       const res = await subscribe;
@@ -538,8 +543,6 @@ export class Subscriber extends ISubscriber {
     this.pending.forEach((params) => {
       pendingSubscriptions.push(params);
     });
-
-    console.log("pendingSubscriptions", pendingSubscriptions.length);
     this.batchSubscribeAttempts++;
     await this.batchSubscribe(pendingSubscriptions);
     this.batchSubscribeAttempts = 0;

@@ -203,33 +203,34 @@ export class Relayer extends IRelayer {
   public request = async (request: RequestArguments<RelayJsonRpc.SubscribeParams>) => {
     this.logger.debug(`Publishing Request Payload`);
     const id = request.id || (getBigIntRpcId().toString() as any);
+    await this.toEstablishConnection();
+
     try {
-      await this.toEstablishConnection();
-      let publishResult: JsonRpcPayload;
-      const publish = async () => {
-        if (publishResult) return publishResult;
-        publishResult = (await createExpiringPromise(
-          new Promise((resolve, reject) => {
-            this.provider.request(request).then(resolve).catch(reject);
-          }),
-          5_000,
-          `request failed to publish: ${id}`,
-        )) as JsonRpcPayload;
-        return publishResult;
-      };
+      // let publishResult: JsonRpcPayload;
+      // const publish = async () => {
+      //   if (publishResult) return publishResult;
+      //   publishResult = (await createExpiringPromise(
+      //     new Promise((resolve, reject) => {
+      //       this.provider.request(request).then(resolve).catch(reject);
+      //     }),
+      //     5_000,
+      //     `request failed to publish: ${id}`,
+      //   )) as JsonRpcPayload;
+      //   return publishResult;
+      // };
       this.logger.error({}, `relayer.request - attempt to publish... ${id}`);
 
-      /**
-       * During publish, we must listen for any disconnect event and reject the promise, else the publish would hang indefinitely
-       */
-      const result = new Promise(async (resolve, reject) => {
-        const onDisconnect = () => {
-          reject(new Error(`relayer.request - publish interrupted, id: ${id}`));
-        };
-        this.provider.once(RELAYER_PROVIDER_EVENTS.disconnect, onDisconnect);
-        const res = await publish().catch(reject);
-        resolve(res);
-      });
+      // /**
+      //  * During publish, we must listen for any disconnect event and reject the promise, else the publish would hang indefinitely
+      //  */
+      // const result = new Promise(async (resolve, reject) => {
+      //   const onDisconnect = () => {
+      //     reject(new Error(`relayer.request - publish interrupted, id: ${id}`));
+      //   };
+      //   this.provider.once(RELAYER_PROVIDER_EVENTS.disconnect, onDisconnect);
+      //   const res = await publish().catch(reject);
+      //   resolve(res);
+      // });
       this.logger.trace(
         {
           id,
@@ -238,7 +239,7 @@ export class Relayer extends IRelayer {
         },
         "relayer.request - published",
       );
-      return (await result) as JsonRpcPayload;
+      return this.provider.request(request);
     } catch (e) {
       this.logger.debug(`Failed to Publish Request: ${id}`);
       throw e;
@@ -389,13 +390,6 @@ export class Relayer extends IRelayer {
               this.reconnectTimeout = undefined;
             });
           this.hasExperiencedNetworkDisruption = false;
-          setTimeout(() => {
-            this.subscriber
-              .start()
-              .catch((error) =>
-                this.logger.error(error, "connect -> start()" + (error as Error)?.message),
-              );
-          }, 5_00);
           resolve();
         });
       } catch (e) {
@@ -556,9 +550,11 @@ export class Relayer extends IRelayer {
 
   private onConnectHandler = () => {
     this.logger.error({}, "relayer connected");
-    // this.subscriber.start().catch((error) => {
-    //   this.logger.error(error, (error as Error)?.message);
-    // });
+    this.subscriber
+      .start()
+      .catch((error) =>
+        this.logger.error(error, "onConnectHandler -> start()" + (error as Error)?.message),
+      );
     this.startPingTimeout();
     this.events.emit(RELAYER_EVENTS.connect);
   };

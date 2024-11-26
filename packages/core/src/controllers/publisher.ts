@@ -90,7 +90,7 @@ export class Publisher extends IPublisher {
             resolve(result);
           })
           .catch((e) => {
-            this.queue.set(id, { ...params, attempt: 1 });
+            this.queue.set(id, { ...params, attempt: 2 });
             this.logger.warn(e, e?.message);
           });
       });
