@@ -612,6 +612,7 @@ export class Relayer extends IRelayer {
     this.connectionAttemptInProgress = false;
     if (this.transportExplicitlyClosed) return;
     if (this.reconnectTimeout) return;
+    if (this.connectPromise) return;
     this.reconnectTimeout = setTimeout(async () => {
       clearTimeout(this.reconnectTimeout);
       await this.transportOpen().catch((error) =>
