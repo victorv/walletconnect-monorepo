@@ -440,6 +440,7 @@ export class Relayer extends IRelayer {
     try {
       clearTimeout(this.pingTimeout);
       this.pingTimeout = setTimeout(() => {
+        console.error("pingTimeout: Connection stalled, terminating...");
         //@ts-expect-error
         this.provider?.connection?.socket?.terminate();
       }, this.heartBeatTimeout);
