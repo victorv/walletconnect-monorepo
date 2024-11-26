@@ -17,6 +17,7 @@ import { ONE_MINUTE, toMiliseconds } from "@walletconnect/time";
 
 type IPublishType = PublisherTypes.Params & {
   attestation?: string;
+  attempt: number;
 };
 export class Publisher extends IPublisher {
   public events = new EventEmitter();
@@ -89,7 +90,7 @@ export class Publisher extends IPublisher {
             resolve(result);
           })
           .catch((e) => {
-            this.queue.set(id, params);
+            this.queue.set(id, { ...params, attempt: 1 });
             this.logger.warn(e, e?.message);
           });
       });
@@ -113,7 +114,6 @@ export class Publisher extends IPublisher {
       if (opts?.internal?.throwOnFailedPublish) {
         throw e;
       }
-      this.queue.set(id, params);
     }
   };
 
@@ -173,8 +173,12 @@ export class Publisher extends IPublisher {
   }
 
   private checkQueue() {
+    this.queue.forEach((params, id) => {
+      this.queue.set(id, { ...params, attempt: params.attempt + 1 });
+    });
     this.queue.forEach(async (params) => {
-      const { topic, message, opts, attestation } = params;
+      const { topic, message, opts, attestation, attempt } = params;
+      this.logger.error({}, `queue publishing ${params.opts.id}, attempt: ${attempt}`);
       await this.rpcPublish({
         topic,
         message,

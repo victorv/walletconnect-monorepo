@@ -94,7 +94,6 @@ export class Relayer extends IRelayer {
   private heartBeatTimeout = toMiliseconds(THIRTY_SECONDS + ONE_SECOND);
   private reconnectTimeout: NodeJS.Timeout | undefined;
   private connectPromise: Promise<void> | undefined;
-  private requestsInFlight = new Map<string, number>();
 
   constructor(opts: RelayerOptions) {
     super(opts);
@@ -206,8 +205,6 @@ export class Relayer extends IRelayer {
     const id = request.id || (getBigIntRpcId().toString() as any);
     try {
       await this.toEstablishConnection();
-      const attempt = this.requestsInFlight.get(id) || 0 + 1;
-      this.requestsInFlight.set(id, attempt);
       let publishResult: JsonRpcPayload;
       const publish = async () => {
         if (publishResult) return publishResult;
@@ -220,28 +217,17 @@ export class Relayer extends IRelayer {
         )) as JsonRpcPayload;
         return publishResult;
       };
-      this.logger.error({}, `relayer.request - attempt to publish... ${id}, attempt: ${attempt}`);
-
-      if (attempt >= 3) {
-        this.transportOpen().catch((error) =>
-          this.logger.error(error, "req in flight attempt limit- " + (error as Error)?.message),
-        );
-        this.requestsInFlight.delete(id);
-        throw new Error(`relayer.request - failed to publish after 5 attempts, id: ${id}`);
-      }
-
-      // this.requestPublishAttempts.set(id, (this.requestPublishAttempts.get(id) || 0) + 1);
+      this.logger.error({}, `relayer.request - attempt to publish... ${id}`);
 
       /**
        * During publish, we must listen for any disconnect event and reject the promise, else the publish would hang indefinitely
        */
       const result = await new Promise(async (resolve, reject) => {
         const onDisconnect = () => {
-          this.requestsInFlight.delete(id);
           reject(new Error(`relayer.request - publish interrupted, id: ${id}`));
         };
         this.provider.once(RELAYER_PROVIDER_EVENTS.disconnect, onDisconnect);
-        const res = await publish();
+        const res = await publish().catch(reject);
         resolve(res);
       });
       this.logger.trace(
@@ -621,7 +607,6 @@ export class Relayer extends IRelayer {
 
   private async onProviderDisconnect() {
     await this.subscriber.stop();
-    this.requestsInFlight.clear();
     clearTimeout(this.pingTimeout);
     this.events.emit(RELAYER_EVENTS.disconnect);
     this.connectionAttemptInProgress = false;
