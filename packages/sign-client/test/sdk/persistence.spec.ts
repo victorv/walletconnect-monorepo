@@ -297,10 +297,17 @@ describe("Sign Client Persistence", () => {
         storageOptions: { database: db_a },
       });
       let lastAccountEvent: any;
-      clients.A.on("session_event", (event) => {
-        lastAccountEvent = event.params.event.data;
+      let eventsReceived = 0;
+      const expectedEvents = 3;
+      await new Promise<void>((resolve) => {
+        clients.A.on("session_event", (event) => {
+          eventsReceived++;
+          lastAccountEvent = event.params.event.data;
+          if (eventsReceived === expectedEvents) {
+            resolve();
+          }
+        });
       });
-      await throttle(10_000);
       const session = clients.A.session.get(topic);
       expect(session).toBeDefined();
 

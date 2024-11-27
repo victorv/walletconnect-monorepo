@@ -49,7 +49,6 @@ export class Subscriber extends ISubscriber {
   private restartInProgress = false;
   private clientId: string;
   private batchSubscribeTopicsLimit = 500;
-  private pendingBatchMessages: RelayerTypes.MessageEvent[] = [];
 
   constructor(public relayer: IRelayer, public logger: Logger) {
     super(relayer, logger);
@@ -135,7 +134,10 @@ export class Subscriber extends ISubscriber {
       const watch = new Watch();
       watch.start(label);
       const interval = setInterval(() => {
-        if (!this.pending.has(topic) && this.topics.includes(topic)) {
+        if (
+          (!this.pending.has(topic) && this.topics.includes(topic)) ||
+          this.cached.some((s) => s.topic === topic)
+        ) {
           clearInterval(interval);
           watch.stop(label);
           resolve(true);
@@ -445,9 +447,10 @@ export class Subscriber extends ISubscriber {
 
   private async onRestart() {
     if (this.cached.length) {
+      const subs = [...this.cached];
       const numOfBatches = Math.ceil(this.cached.length / this.batchSubscribeTopicsLimit);
       for (let i = 0; i < numOfBatches; i++) {
-        const batch = this.cached.splice(0, this.batchSubscribeTopicsLimit);
+        const batch = subs.splice(0, this.batchSubscribeTopicsLimit);
         await this.batchFetchMessages(batch);
         await this.batchSubscribe(batch);
       }
@@ -489,7 +492,7 @@ export class Subscriber extends ISubscriber {
     this.logger.trace(`Fetching batch messages for ${subscriptions.length} subscriptions`);
     const response = await this.rpcBatchFetchMessages(subscriptions);
     if (response && response.messages) {
-      this.pendingBatchMessages = this.pendingBatchMessages.concat(response.messages);
+      await this.relayer.handleBatchMessageEvents(response.messages);
     }
   }
 
@@ -513,11 +516,6 @@ export class Subscriber extends ISubscriber {
     });
 
     await this.batchSubscribe(pendingSubscriptions);
-
-    if (this.pendingBatchMessages.length) {
-      await this.relayer.handleBatchMessageEvents(this.pendingBatchMessages);
-      this.pendingBatchMessages = [];
-    }
   };
 
   private registerEventListeners = () => {
