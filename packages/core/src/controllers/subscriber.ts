@@ -492,7 +492,12 @@ export class Subscriber extends ISubscriber {
     this.logger.trace(`Fetching batch messages for ${subscriptions.length} subscriptions`);
     const response = await this.rpcBatchFetchMessages(subscriptions);
     if (response && response.messages) {
-      await this.relayer.handleBatchMessageEvents(response.messages);
+      await new Promise<void>((resolve) => {
+        setTimeout(async () => {
+          await this.relayer.handleBatchMessageEvents(response.messages);
+          resolve();
+        }, 1000);
+      });
     }
   }
 
