@@ -59,6 +59,7 @@ export async function initTwoPairedClients(
       const settled: any = await createExpiringPromise(
         testConnectMethod(clients),
         TESTS_CONNECT_TIMEOUT * 2,
+        "testConnectMethod(clients)",
       );
       pairingA = settled.pairingA;
       sessionA = settled.sessionA;

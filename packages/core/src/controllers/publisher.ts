@@ -88,6 +88,7 @@ export class Publisher extends IPublisher {
             attestation: opts?.attestation,
           }).catch((e) => this.logger.warn(e, e?.message)),
           this.initialPublishTimeout,
+          `Failed to publish payload, please try again. id:${id} tag:${tag}`,
         );
         await initialPublish
           .then((result) => {

@@ -315,6 +315,7 @@ export class Subscriber extends ISubscriber {
             .then(resolve);
         }),
         this.subscribeTimeout,
+        "rpcBatchSubscribe failed, please try again",
       );
       return await subscribe;
     } catch (err) {
@@ -339,6 +340,7 @@ export class Subscriber extends ISubscriber {
       const fetchMessagesPromise = await createExpiringPromise(
         this.relayer.request(request).catch((e) => this.logger.warn(e)),
         this.subscribeTimeout,
+        "rpcBatchFetchMessages failed, please try again",
       );
       result = (await fetchMessagesPromise) as {
         messages: RelayerTypes.MessageEvent[];

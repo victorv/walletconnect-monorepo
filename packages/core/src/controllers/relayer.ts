@@ -290,12 +290,12 @@ export class Relayer extends IRelayer {
       return;
     }
     const sortedMessages = messages.sort((a, b) => a.publishedAt - b.publishedAt);
-    this.logger.trace(`Batch of ${sortedMessages.length} message events sorted`);
+    this.logger.debug(`Batch of ${sortedMessages.length} message events sorted`);
     for (const message of sortedMessages) {
       try {
         await this.onMessageEvent(message);
       } catch (e) {
-        this.logger.warn(e, (e as Error)?.message);
+        this.logger.warn(e, "Error while processing batch message event: " + (e as Error)?.message);
       }
     }
     this.logger.trace(`Batch of ${sortedMessages.length} message events processed`);
