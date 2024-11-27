@@ -133,7 +133,6 @@ describe("Subscriber", () => {
     });
     it("calls `provider.request` with the expected request shape", async () => {
       await subscriber.subscribe(topic);
-      // await new Promise((resolve) => setTimeout(resolve, 2000));
       expect(
         requestSpy.calledOnceWith(
           Sinon.match({

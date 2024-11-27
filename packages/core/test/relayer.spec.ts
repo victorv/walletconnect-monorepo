@@ -19,7 +19,7 @@ import Sinon from "sinon";
 import { JsonRpcRequest } from "@walletconnect/jsonrpc-utils";
 import { createExpiringPromise, generateRandomBytes32, hashMessage } from "@walletconnect/utils";
 
-describe("Relayer", async () => {
+describe("Relayer", () => {
   const logger = pino(getDefaultLoggerOptions({ level: CORE_DEFAULT.logger }));
 
   let core;

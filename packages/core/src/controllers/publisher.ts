@@ -13,7 +13,7 @@ import { EventEmitter } from "events";
 
 import { PUBLISHER_CONTEXT, PUBLISHER_DEFAULT_TTL, RELAYER_EVENTS } from "../constants";
 import { getBigIntRpcId } from "@walletconnect/jsonrpc-utils";
-import { ONE_MINUTE, toMiliseconds } from "@walletconnect/time";
+import { ONE_MINUTE, ONE_SECOND, toMiliseconds } from "@walletconnect/time";
 
 type IPublishType = PublisherTypes.Params & {
   attestation?: string;
@@ -25,7 +25,7 @@ export class Publisher extends IPublisher {
   public queue = new Map<string, IPublishType>();
 
   private publishTimeout = toMiliseconds(ONE_MINUTE);
-  // private failedPublishTimeout = toMiliseconds(ONE_SECOND);
+  private initialPublishTimeout = toMiliseconds(ONE_SECOND * 15);
   private needsTransportRestart = false;
 
   constructor(public relayer: IRelayer, public logger: Logger) {
@@ -63,6 +63,11 @@ export class Publisher extends IPublisher {
     const failedPublishMessage = `Failed to publish payload, please try again. id:${id} tag:${tag}`;
 
     try {
+      /**
+       * attempt to publish the payload for <initialPublishTimeout> seconds,
+       * if the publish fails, add the payload to the queue and it will be retried on every pulse
+       * until it is successfully published or <publishTimeout> seconds have passed
+       */
       const publishPromise = new Promise(async (resolve) => {
         const onPublish = ({ id }: { id: string }) => {
           if (params.opts.id === id) {
@@ -82,7 +87,7 @@ export class Publisher extends IPublisher {
             id,
             attestation: opts?.attestation,
           }).catch((e) => this.logger.warn(e, e?.message)),
-          15_000,
+          this.initialPublishTimeout,
         );
         await initialPublish
           .then((result) => {
@@ -90,30 +95,25 @@ export class Publisher extends IPublisher {
             resolve(result);
           })
           .catch((e) => {
-            this.queue.set(id, { ...params, attempt: 2 });
+            this.queue.set(id, { ...params, attempt: 1 });
             this.logger.warn(e, e?.message);
           });
       });
-
-      const result = await createExpiringPromise(
-        publishPromise,
-        this.publishTimeout,
-        failedPublishMessage,
-      );
-
       this.logger.trace({
         type: "method",
         method: "publish",
         params: { id, topic, message, opts },
       });
-      this.queue.delete(id);
-      return result as any;
+
+      await createExpiringPromise(publishPromise, this.publishTimeout, failedPublishMessage);
     } catch (e) {
       this.logger.debug(`Failed to Publish Payload`);
       this.logger.error(e as any);
       if (opts?.internal?.throwOnFailedPublish) {
         throw e;
       }
+    } finally {
+      this.queue.delete(id);
     }
   };
 
@@ -162,10 +162,7 @@ export class Publisher extends IPublisher {
     if (isUndefined(request.params?.tag)) delete request.params?.tag;
     this.logger.debug(`Outgoing Relay Payload`);
     this.logger.trace({ type: "message", direction: "outgoing", request });
-
-    this.logger.error({}, `publisher - attempt to publish... ${id} 🔄`);
     const result = await this.relayer.request(request);
-    this.logger.error({}, `publisher - published ${id} ✅`);
     this.relayer.events.emit(RELAYER_EVENTS.publish, params);
     this.logger.debug(`Successfully Published Payload`);
     return result;
@@ -176,12 +173,11 @@ export class Publisher extends IPublisher {
   }
 
   private checkQueue() {
-    this.queue.forEach((params, id) => {
-      this.queue.set(id, { ...params, attempt: params.attempt + 1 });
-    });
-    this.queue.forEach(async (params) => {
-      const { topic, message, opts, attestation, attempt } = params;
-      this.logger.error({}, `queue publishing ${params.opts.id}, attempt: ${attempt}`);
+    this.queue.forEach(async (params, id) => {
+      const attempt = params.attempt + 1;
+      this.queue.set(id, { ...params, attempt });
+      const { topic, message, opts, attestation } = params;
+      this.logger.trace({}, `Publisher: queue->publishing: ${params.opts.id}, attempt: ${attempt}`);
       await this.rpcPublish({
         topic,
         message,

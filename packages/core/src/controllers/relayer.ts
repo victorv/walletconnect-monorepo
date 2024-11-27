@@ -1,4 +1,3 @@
-/* eslint-disable no-console */
 import { EventEmitter } from "events";
 import { JsonRpcProvider } from "@walletconnect/jsonrpc-provider";
 import {
@@ -20,13 +19,7 @@ import {
   Logger,
 } from "@walletconnect/logger";
 import { RelayJsonRpc } from "@walletconnect/relay-api";
-import {
-  FIVE_MINUTES,
-  // ONE_MINUTE,
-  ONE_SECOND,
-  THIRTY_SECONDS,
-  toMiliseconds,
-} from "@walletconnect/time";
+import { FIVE_MINUTES, ONE_SECOND, THIRTY_SECONDS, toMiliseconds } from "@walletconnect/time";
 import {
   ICore,
   IMessageTracker,
@@ -211,7 +204,7 @@ export class Relayer extends IRelayer {
           method: request.method,
           topic: request.params?.topic,
         },
-        "relayer.request - published",
+        "relayer.request - publishing...",
       );
       return this.provider.request(request);
     } catch (e) {
@@ -257,11 +250,10 @@ export class Relayer extends IRelayer {
   }
 
   async transportOpen(relayUrl?: string) {
-    const random = Math.floor(Math.random() * 1e3);
     if (this.connectPromise) {
-      this.logger.error({}, `Waiting for existing connection attempt to resolve... :${random}`);
+      this.logger.debug({}, `Waiting for existing connection attempt to resolve...`);
       await this.connectPromise;
-      this.logger.error({}, `Existing connection attempt resolved :${random}`);
+      this.logger.debug({}, `Existing connection attempt resolved`);
     } else {
       this.connectPromise = new Promise(async (resolve, reject) => {
         await this.connect(relayUrl)
@@ -279,7 +271,7 @@ export class Relayer extends IRelayer {
   }
 
   public async restartTransport(relayUrl?: string) {
-    this.logger.error({}, "Restarting transport...");
+    this.logger.debug({}, "Restarting transport...");
     if (this.connectionAttemptInProgress) return;
     this.relayUrl = relayUrl || this.relayUrl;
     await this.confirmOnlineStateOrThrow();
@@ -340,7 +332,7 @@ export class Relayer extends IRelayer {
 
     while (attempt < 6) {
       try {
-        this.logger.error({}, `Connected to ${this.relayUrl} successfully, attempt: ${attempt}`);
+        this.logger.debug({}, `Connecting to ${this.relayUrl}, attempt: ${attempt}...`);
         // Always create new socket instance when trying to connect because if the socket was dropped due to `socket hang up` exception
         // It wont be able to reconnect
         await this.createProvider();
@@ -367,8 +359,8 @@ export class Relayer extends IRelayer {
           resolve();
         });
       } catch (e) {
-        this.logger.error(e, (e as Error)?.message);
         const error = e as Error;
+        this.logger.warn(error, error.message);
         this.hasExperiencedNetworkDisruption = true;
         if (!this.isConnectionStalled(error.message)) {
           throw e;
@@ -378,7 +370,7 @@ export class Relayer extends IRelayer {
       }
 
       if (this.connected) {
-        this.logger.error({}, `Connected to ${this.relayUrl} successfully, attempt: ${attempt}`);
+        this.logger.debug({}, `Connected to ${this.relayUrl} successfully on attempt: ${attempt}`);
         break;
       }
 
@@ -415,7 +407,7 @@ export class Relayer extends IRelayer {
     try {
       clearTimeout(this.pingTimeout);
       this.pingTimeout = setTimeout(() => {
-        console.error("pingTimeout: Connection stalled, terminating...");
+        this.logger.debug({}, "pingTimeout: Connection stalled, terminating...");
         //@ts-expect-error
         this.provider?.connection?.socket?.terminate();
       }, this.heartBeatTimeout);
@@ -523,7 +515,7 @@ export class Relayer extends IRelayer {
   };
 
   private onConnectHandler = () => {
-    this.logger.error({}, "relayer connected");
+    this.logger.debug({}, "Relayer connected 🛜");
     this.subscriber
       .start()
       .catch((error) =>
@@ -534,8 +526,7 @@ export class Relayer extends IRelayer {
   };
 
   private onDisconnectHandler = () => {
-    this.logger.trace("relayer disconnected");
-    this.logger.error({}, "relayer disconnected");
+    this.logger.debug({}, "Relayer disconnected 🛑");
     this.onProviderDisconnect();
   };
 
