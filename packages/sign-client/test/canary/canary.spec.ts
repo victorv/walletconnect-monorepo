@@ -32,21 +32,41 @@ describe("Canary", () => {
         logger,
       });
       const initLatencyMs = Date.now() - initStart;
+      log(
+        `Client A (${await handshakeClient.core.crypto.getClientId()}) initialized in ${initLatencyMs}ms`,
+      );
       const handshakeStart = Date.now();
       await handshakeClient.core.relayer.transportOpen();
       const handshakeLatencyMs = Date.now() - handshakeStart;
+      log(
+        `Client A (${await handshakeClient.core.crypto.getClientId()}) initialized in ${handshakeLatencyMs}ms`,
+      );
       await handshakeClient.core.relayer.transportClose();
 
-      const start = Date.now();
+      const aInitStart = Date.now();
       const A = await SignClient.init({
         ...TEST_SIGN_CLIENT_OPTIONS_A,
         logger,
       });
+      log(
+        `Client A (${await A.core.crypto.getClientId()}) initialized in ${
+          Date.now() - aInitStart
+        }ms`,
+      );
 
+      const bInitStart = Date.now();
       const B = await SignClient.init({
         ...TEST_SIGN_CLIENT_OPTIONS_B,
         logger,
       });
+      log(
+        `Client B (${await B.core.crypto.getClientId()}) initialized in ${
+          Date.now() - bInitStart
+        }ms`,
+      );
+
+      const start = Date.now();
+
       const clients = { A, B };
       log(
         `Clients initialized (relay '${TEST_RELAY_URL}'), client ids: A:'${await clients.A.core.crypto.getClientId()}';B:'${await clients.B.core.crypto.getClientId()}'`,
