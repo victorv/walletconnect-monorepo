@@ -51,11 +51,14 @@ describe("Sign Client Persistence", () => {
                 resolve(event);
               });
             }),
-            new Promise(async (resolve) => {
-              // ping
-              await clients.A.ping({ topic });
-              await clients.B.ping({ topic });
-              resolve(true);
+            new Promise<void>(async (resolve, reject) => {
+              try {
+                await clients.A.ping({ topic });
+                await clients.B.ping({ topic });
+                resolve();
+              } catch (error) {
+                reject(error);
+              }
             }),
           ]);
 
@@ -110,11 +113,14 @@ describe("Sign Client Persistence", () => {
                 resolve(event);
               });
             }),
-            new Promise(async (resolve) => {
-              // ping
-              await clients.A.ping({ topic });
-              await clients.B.ping({ topic });
-              resolve(true);
+            new Promise<void>(async (resolve, reject) => {
+              try {
+                await clients.A.ping({ topic });
+                await clients.B.ping({ topic });
+                resolve();
+              } catch (error) {
+                reject(error);
+              }
             }),
           ]);
 

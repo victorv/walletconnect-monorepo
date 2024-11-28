@@ -34,7 +34,8 @@ export async function initTwoClients(
     ...sharedClientOpts,
     ...clientOptsB,
   });
-  await throttle(500);
+  A.core.relayer.publisher.publishTimeout = 120_000;
+  B.core.relayer.publisher.publishTimeout = 120_000;
   return { A, B };
 }
 
