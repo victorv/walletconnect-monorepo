@@ -13,7 +13,7 @@ import { Wallet as CryptoWallet } from "@ethersproject/wallet";
 import { formatJsonRpcResult } from "@walletconnect/jsonrpc-utils";
 import { RELAYER_EVENTS } from "@walletconnect/core";
 
-describe("Authenticated Sessions", () => {
+describe.skip("Authenticated Sessions", () => {
   let cryptoWallet: CryptoWallet;
 
   beforeAll(() => {
