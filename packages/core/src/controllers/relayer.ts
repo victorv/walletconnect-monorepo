@@ -503,8 +503,23 @@ export class Relayer extends IRelayer {
 
   private async onMessageEvent(messageEvent: RelayerTypes.MessageEvent) {
     if (await this.shouldIgnoreMessageEvent(messageEvent)) {
-      this.logger.warn({}, "Ignoring message event: " + JSON.stringify(messageEvent));
-      return;
+      this.logger.warn(
+        {},
+        "Ignoring message event: double cheking..." + JSON.stringify(messageEvent),
+      );
+      const shouldIgnore = await new Promise((resolve) =>
+        setTimeout(async () => {
+          if (await this.shouldIgnoreMessageEvent(messageEvent)) {
+            this.logger.warn({}, "Ignoring message event: final" + JSON.stringify(messageEvent));
+            resolve(true);
+          }
+        }, 5_000),
+      );
+      if (shouldIgnore) {
+        return;
+      } else {
+        this.logger.warn({}, "Message event was not ignored: " + JSON.stringify(messageEvent));
+      }
     }
     this.events.emit(RELAYER_EVENTS.message, messageEvent);
     await this.recordMessageEvent(messageEvent);
