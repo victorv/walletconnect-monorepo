@@ -379,39 +379,34 @@ describe("Sign Client Integration", () => {
         } = await initTwoPairedClients({}, {}, { logger: "error" });
         await Promise.all([
           new Promise<void>((resolve) => {
-            clients.B.once("session_request", async (params) => {
-              await clients.B.respond({
-                topic,
-                response: formatJsonRpcResult(params.id, "ok"),
-              });
-              resolve();
-            });
-          }),
-          clients.A.request({
-            topic,
-            ...TEST_REQUEST_PARAMS,
-          }),
-        ]);
-
-        expect(clients.B.pendingRequest.getAll().length).to.eq(1);
-        // @ts-expect-error - sessionRequestQueue is private property
-        expect(clients.B.engine.sessionRequestQueue.state).to.eq(ENGINE_QUEUE_STATES.active);
-
-        await Promise.all([
-          new Promise<void>((resolve) => {
             clients.B.once("session_delete", () => {
+              expect(clients.B.pendingRequest.getAll().length).to.eq(0);
+              // @ts-expect-error - sessionRequestQueue is private property
+              expect(clients.B.engine.sessionRequestQueue.state).to.eq(ENGINE_QUEUE_STATES.idle);
               resolve();
             });
           }),
-          clients.A.disconnect({ topic, reason: getSdkError("USER_DISCONNECTED") }),
+          new Promise<void>((resolve) => {
+            clients.B.once("session_request", async (params) => {
+              expect(clients.B.pendingRequest.getAll().length).to.eq(1);
+
+              await clients.A.disconnect({ topic, reason: getSdkError("USER_DISCONNECTED") });
+
+              // @ts-expect-error - sessionRequestQueue is private property
+              expect(clients.B.engine.sessionRequestQueue.state).to.eq(ENGINE_QUEUE_STATES.active);
+
+              resolve();
+            });
+            clients.A.request({
+              topic,
+              ...TEST_REQUEST_PARAMS,
+            }).catch((e) => {
+              // eslint-disable-next-line no-console
+              console.error(e);
+            });
+          }),
         ]);
-        // small delay as deleting pending requests is async
-        await throttle(5_00);
-        expect(clients.B.pendingRequest.getAll().length).to.eq(0);
-        // @ts-expect-error - sessionRequestQueue is private property
-        expect(clients.B.engine.sessionRequestQueue.state).to.eq(ENGINE_QUEUE_STATES.idle);
-        // @ts-expect-error - force close the transport due to pending session request
-        clients.A.core.relayer.hasExperiencedNetworkDisruption = true;
+
         await deleteClients(clients);
       });
     });
