@@ -207,9 +207,10 @@ export class Relayer extends IRelayer {
         },
         "relayer.request - publishing...",
       );
-      this.requestsInFlight.push(`${id}:${(request.params as any)?.tag}`);
+      const tag = `${id}:${(request.params as any)?.tag}`;
+      this.requestsInFlight.push(tag);
       const result = await this.provider.request(request);
-      this.requestsInFlight = this.requestsInFlight.filter((i) => i !== id);
+      this.requestsInFlight = this.requestsInFlight.filter((i) => i !== tag);
       return result;
     } catch (e) {
       this.logger.debug(`Failed to Publish Request: ${id}`);
