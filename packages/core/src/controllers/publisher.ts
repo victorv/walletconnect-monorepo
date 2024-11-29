@@ -114,6 +114,8 @@ export class Publisher extends IPublisher {
       });
 
       await createExpiringPromise(publishPromise, this.publishTimeout, failedPublishMessage);
+      // @ts-expect-error
+      global.setSentTopic(topic);
     } catch (e) {
       this.logger.debug(`Failed to Publish Payload`);
       this.logger.error(e as any);

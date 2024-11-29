@@ -10,7 +10,7 @@ import {
   JsonRpcError,
 } from "@walletconnect/jsonrpc-utils";
 import { calcExpiry, getSdkError, parseUri } from "@walletconnect/utils";
-import { expect, describe, it, vi } from "vitest";
+import { expect, describe, it, vi, afterAll, afterEach } from "vitest";
 import SignClient, {
   ENGINE_QUEUE_STATES,
   ENGINE_RPC_OPTS,
@@ -38,8 +38,39 @@ import {
   EVENT_CLIENT_SESSION_ERRORS,
   RELAYER_EVENTS,
 } from "@walletconnect/core";
-
+let sentTopics = {};
+let receivedTopics = {};
+global.setSentTopic = (topic: string) => {
+  // console.log("setSentTopic", topic);
+  sentTopics[topic] = sentTopics[topic] ? sentTopics[topic] + 1 : 1;
+};
+global.setReceivedTopic = (topic: string) => {
+  // console.log("setReceivedTopic", topic);
+  receivedTopics[topic] = receivedTopics[topic] ? receivedTopics[topic] + 1 : 1;
+};
+let sentRequests = {};
+let receivedRequests = {};
+global.setSentRequest = (topic: string) => {
+  // console.log("setSentRequest", topic);
+  sentRequests[topic] = sentRequests[topic] ? sentRequests[topic] + 1 : 1;
+};
+global.setReceivedRequest = (topic: string) => {
+  // console.log("setReceivedRequest", topic);
+  receivedRequests[topic] = receivedRequests[topic] ? receivedRequests[topic] + 1 : 1;
+};
 describe("Sign Client Integration", () => {
+  afterEach(async (data) => {
+    console.log("test", data.meta.name);
+    console.log("topics", sentTopics, Object.keys(sentTopics).length);
+    console.log("receivedTopics", receivedTopics, Object.keys(receivedTopics).length);
+    console.log("sentRequests", sentRequests, Object.keys(sentRequests).length);
+    console.log("receivedRequests", receivedRequests, Object.keys(receivedRequests).length);
+    sentRequests = {};
+    receivedRequests = {};
+    sentTopics = {};
+    receivedTopics = {};
+    await throttle(50);
+  });
   it("init", async () => {
     const client = await SignClient.init({
       ...TEST_SIGN_CLIENT_OPTIONS,

@@ -506,6 +506,8 @@ export class Relayer extends IRelayer {
     if (await this.shouldIgnoreMessageEvent(messageEvent)) {
       return;
     }
+    //@ts-expect-error
+    global.setReceivedTopic(messageEvent.topic);
     this.events.emit(RELAYER_EVENTS.message, messageEvent);
     await this.recordMessageEvent(messageEvent);
   }
