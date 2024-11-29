@@ -502,7 +502,10 @@ export class Relayer extends IRelayer {
   }
 
   private async onMessageEvent(messageEvent: RelayerTypes.MessageEvent) {
-    if (await this.shouldIgnoreMessageEvent(messageEvent)) return;
+    if (await this.shouldIgnoreMessageEvent(messageEvent)) {
+      this.logger.warn({}, "Ignoring message event: " + JSON.stringify(messageEvent));
+      return;
+    }
     this.events.emit(RELAYER_EVENTS.message, messageEvent);
     await this.recordMessageEvent(messageEvent);
   }
