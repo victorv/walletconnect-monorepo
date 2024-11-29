@@ -87,7 +87,7 @@ export class Relayer extends IRelayer {
   private heartBeatTimeout = toMiliseconds(THIRTY_SECONDS + ONE_SECOND);
   private reconnectTimeout: NodeJS.Timeout | undefined;
   private connectPromise: Promise<void> | undefined;
-  private requestsInFlight: number[] = [];
+  private requestsInFlight: string[] = [];
 
   constructor(opts: RelayerOptions) {
     super(opts);
@@ -207,7 +207,7 @@ export class Relayer extends IRelayer {
         },
         "relayer.request - publishing...",
       );
-      this.requestsInFlight.push(id);
+      this.requestsInFlight.push(`${id}:${(request.params as any)?.tag}`);
       const result = await this.provider.request(request);
       this.requestsInFlight = this.requestsInFlight.filter((i) => i !== id);
       return result;
@@ -465,13 +465,6 @@ export class Relayer extends IRelayer {
 
     // Ignore if `topic` is not subscribed to.
     if (!(await this.subscriber.isSubscribed(topic))) {
-      if (this.core.crypto.keychain.keychain.has(topic) && !this.messages.has(topic, message)) {
-        this.logger.warn(
-          {},
-          "Message received for a topic that not subscribed but present in keychain, processing...",
-        );
-        return false;
-      }
       this.logger.warn(`Ignoring message for non-subscribed topic ${topic}`);
       return true;
     }
@@ -505,8 +498,6 @@ export class Relayer extends IRelayer {
       await this.onMessageEvent(messageEvent);
     } else if (isJsonRpcResponse(payload)) {
       this.events.emit(RELAYER_EVENTS.message_ack, payload);
-    } else {
-      this.logger.warn({}, `Unknown payload type: ` + JSON.stringify(payload));
     }
   }
 
@@ -543,8 +534,12 @@ export class Relayer extends IRelayer {
   private onDisconnectHandler = () => {
     this.logger.warn(
       {},
-      `Relayer disconnected 🛑, requests being sent: ${this.requestsInFlight.join(",")}`,
+      `Relayer disconnected 🛑, requests being sent: ${this.requestsInFlight.join(
+        ",",
+        // @ts-expect-error
+      )} - Publisher queue: ${this.publisher.queue.size}`,
     );
+    this.requestsInFlight = [];
     this.onProviderDisconnect();
   };
 
