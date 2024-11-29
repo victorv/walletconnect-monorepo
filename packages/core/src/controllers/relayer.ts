@@ -87,6 +87,7 @@ export class Relayer extends IRelayer {
   private heartBeatTimeout = toMiliseconds(THIRTY_SECONDS + ONE_SECOND);
   private reconnectTimeout: NodeJS.Timeout | undefined;
   private connectPromise: Promise<void> | undefined;
+  private requestsInFlight: number[] = [];
 
   constructor(opts: RelayerOptions) {
     super(opts);
@@ -206,7 +207,10 @@ export class Relayer extends IRelayer {
         },
         "relayer.request - publishing...",
       );
-      return this.provider.request(request);
+      this.requestsInFlight.push(id);
+      const result = await this.provider.request(request);
+      this.requestsInFlight = this.requestsInFlight.filter((i) => i !== id);
+      return result;
     } catch (e) {
       this.logger.debug(`Failed to Publish Request: ${id}`);
       throw e;
@@ -515,7 +519,7 @@ export class Relayer extends IRelayer {
   };
 
   private onConnectHandler = () => {
-    this.logger.debug({}, "Relayer connected 🛜");
+    this.logger.warn({}, "Relayer connected 🛜");
     this.subscriber
       .start()
       .catch((error) =>
@@ -526,7 +530,10 @@ export class Relayer extends IRelayer {
   };
 
   private onDisconnectHandler = () => {
-    this.logger.debug({}, "Relayer disconnected 🛑");
+    this.logger.warn(
+      {},
+      `Relayer disconnected 🛑, requests being sent: ${this.requestsInFlight.join(",")}`,
+    );
     this.onProviderDisconnect();
   };
 

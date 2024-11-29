@@ -78,17 +78,24 @@ export class Publisher extends IPublisher {
         };
         this.relayer.events.on(RELAYER_EVENTS.publish, onPublish);
         const initialPublish = createExpiringPromise(
-          this.rpcPublish({
-            topic,
-            message,
-            ttl,
-            prompt,
-            tag,
-            id,
-            attestation: opts?.attestation,
-          }).catch((e) => this.logger.warn(e, e?.message)),
+          new Promise((resolve, reject) => {
+            this.rpcPublish({
+              topic,
+              message,
+              ttl,
+              prompt,
+              tag,
+              id,
+              attestation: opts?.attestation,
+            })
+              .catch((e) => {
+                this.logger.warn(e, e?.message);
+                reject(e);
+              })
+              .then(resolve);
+          }),
           this.initialPublishTimeout,
-          `Failed to publish payload, please try again. id:${id} tag:${tag}`,
+          `Failed initial publish, retrying.... id:${id} tag:${tag}`,
         );
         await initialPublish
           .then((result) => {
@@ -178,7 +185,10 @@ export class Publisher extends IPublisher {
       const attempt = params.attempt + 1;
       this.queue.set(id, { ...params, attempt });
       const { topic, message, opts, attestation } = params;
-      this.logger.trace({}, `Publisher: queue->publishing: ${params.opts.id}, attempt: ${attempt}`);
+      this.logger.warn(
+        {},
+        `Publisher: queue->publishing: ${params.opts.id}, tag: ${params.opts.tag}, attempt: ${attempt}`,
+      );
       await this.rpcPublish({
         topic,
         message,
@@ -188,6 +198,7 @@ export class Publisher extends IPublisher {
         id: opts.id,
         attestation,
       });
+      this.logger.warn({}, `Publisher: queue->published: ${params.opts.id}`);
     });
   }
 

@@ -261,8 +261,14 @@ export class Subscriber extends ISubscriber {
         this.events.on(SUBSCRIBER_EVENTS.created, onSubscribe);
         try {
           const result = await createExpiringPromise(
-            this.relayer.request(request).catch((e) => {
-              this.logger.warn(e, e?.message);
+            new Promise((resolve, reject) => {
+              this.relayer
+                .request(request)
+                .catch((e) => {
+                  this.logger.warn(e, e?.message);
+                  reject(e);
+                })
+                .then(resolve);
             }),
             this.initialSubscribeTimeout,
             `Subscribing to ${topic} failed, please try again`,
@@ -338,7 +344,15 @@ export class Subscriber extends ISubscriber {
     let result;
     try {
       const fetchMessagesPromise = await createExpiringPromise(
-        this.relayer.request(request).catch((e) => this.logger.warn(e)),
+        new Promise((resolve, reject) => {
+          this.relayer
+            .request(request)
+            .catch((e) => {
+              this.logger.warn(e);
+              reject(e);
+            })
+            .then(resolve);
+        }),
         this.subscribeTimeout,
         "rpcBatchFetchMessages failed, please try again",
       );
