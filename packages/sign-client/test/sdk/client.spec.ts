@@ -377,15 +377,21 @@ describe("Sign Client Integration", () => {
           clients,
           sessionA: { topic },
         } = await initTwoPairedClients({}, {}, { logger: "error" });
-        await new Promise<void>((resolve) => {
-          clients.B.once("session_request", () => {
-            resolve();
-          });
+        await Promise.all([
+          new Promise<void>((resolve) => {
+            clients.B.once("session_request", async (params) => {
+              await clients.B.respond({
+                topic,
+                response: formatJsonRpcResult(params.id, "ok"),
+              });
+              resolve();
+            });
+          }),
           clients.A.request({
             topic,
             ...TEST_REQUEST_PARAMS,
-          });
-        });
+          }),
+        ]);
 
         expect(clients.B.pendingRequest.getAll().length).to.eq(1);
         // @ts-expect-error - sessionRequestQueue is private property

@@ -505,6 +505,8 @@ export class Relayer extends IRelayer {
       await this.onMessageEvent(messageEvent);
     } else if (isJsonRpcResponse(payload)) {
       this.events.emit(RELAYER_EVENTS.message_ack, payload);
+    } else {
+      this.logger.warn({}, `Unknown payload type: ` + JSON.stringify(payload));
     }
   }
 
