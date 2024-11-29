@@ -207,7 +207,7 @@ export class Relayer extends IRelayer {
         },
         "relayer.request - publishing...",
       );
-      const tag = `${id}:${(request.params as any)?.tag}`;
+      const tag = `${id}:${(request.params as any)?.tag || ""}`;
       this.requestsInFlight.push(tag);
       const result = await this.provider.request(request);
       this.requestsInFlight = this.requestsInFlight.filter((i) => i !== tag);
