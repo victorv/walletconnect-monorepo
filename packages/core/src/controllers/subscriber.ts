@@ -387,7 +387,6 @@ export class Subscriber extends ISubscriber {
     if (!subscriptions.length) return;
     subscriptions.forEach((subscription) => {
       this.setSubscription(subscription.id, { ...subscription });
-      this.pending.delete(subscription.topic);
     });
   }
 
@@ -467,7 +466,12 @@ export class Subscriber extends ISubscriber {
       for (let i = 0; i < numOfBatches; i++) {
         const batch = subs.splice(0, this.batchSubscribeTopicsLimit);
         // await this.batchFetchMessages(batch);
-        await this.batchSubscribe(batch);
+        await new Promise<void>((resolve) => {
+          setTimeout(async () => {
+            await this.batchSubscribe(batch);
+            resolve();
+          }, 1000);
+        });
       }
     }
     this.events.emit(SUBSCRIBER_EVENTS.resubscribed);
@@ -495,13 +499,13 @@ export class Subscriber extends ISubscriber {
 
   private async batchSubscribe(subscriptions: SubscriberTypes.Params[]) {
     if (!subscriptions.length) return;
-
     this.onBatchSubscribe(
       subscriptions.map((s) => ({ ...s, id: this.getSubscriptionId(s.topic) })),
     );
-    setTimeout(async () => {
-      await this.rpcBatchSubscribe(subscriptions);
-    }, 1000);
+    await this.rpcBatchSubscribe(subscriptions);
+    subscriptions.forEach((s) => {
+      this.pending.delete(s.topic);
+    });
   }
 
   // @ts-ignore
