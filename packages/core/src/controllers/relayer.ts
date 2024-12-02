@@ -77,7 +77,7 @@ export class Relayer extends IRelayer {
   private relayUrl: string;
   private projectId: string | undefined;
   private bundleId: string | undefined;
-  private staleConnectionErrors = ["socket hang up", "stalled", "interrupted"];
+  // private staleConnectionErrors = ["socket hang up", "stalled", "interrupted"];
   private hasExperiencedNetworkDisruption = false;
   private pingTimeout: NodeJS.Timeout | undefined;
   /**
@@ -435,9 +435,9 @@ export class Relayer extends IRelayer {
     }
   };
 
-  private isConnectionStalled(message: string) {
-    return this.staleConnectionErrors.some((error) => message.includes(error));
-  }
+  // private isConnectionStalled(message: string) {
+  //   return this.staleConnectionErrors.some((error) => message.includes(error));
+  // }
 
   private async createProvider() {
     if (this.provider.connection) {
