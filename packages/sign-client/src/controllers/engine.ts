@@ -136,9 +136,7 @@ export class Engine extends IEngine {
   };
 
   private requestQueueDelay = ONE_SECOND;
-
   private expectedPairingMethodMap: Map<string, string[]> = new Map();
-
   // Ephemeral (in-memory) map to store recently deleted items
   private recentlyDeletedMap = new Map<
     string | number,
@@ -1491,8 +1489,6 @@ export class Engine extends IEngine {
           .publish(topic, message, opts)
           .catch((error) => this.client.logger.error(error));
       }
-      // @ts-expect-error
-      global?.setSentRequest?.(payload.id + ":req");
     }
 
     return payload.id;
@@ -1540,8 +1536,6 @@ export class Engine extends IEngine {
           .publish(topic, message, opts)
           .catch((error) => this.client.logger.error(error));
       }
-      // @ts-expect-error
-      global?.setSentRequest?.(payload.id + ":res");
     }
 
     await this.client.core.history.resolve(payload);
@@ -1693,8 +1687,6 @@ export class Engine extends IEngine {
 
     const reqMethod = payload.method as JsonRpcTypes.WcMethod;
 
-    // @ts-expect-error
-    global?.setReceivedRequest?.(`${payload.id}:req:${reqMethod}`);
     if (this.shouldIgnorePairingRequest({ topic, requestMethod: reqMethod })) {
       return;
     }
@@ -1739,8 +1731,7 @@ export class Engine extends IEngine {
     const { topic, payload, transportType } = event;
     const record = await this.client.core.history.get(topic, payload.id);
     const resMethod = record.request.method as JsonRpcTypes.WcMethod;
-    // @ts-expect-error
-    global?.setReceivedRequest?.(`${payload.id}:res:${resMethod}`);
+
     switch (resMethod) {
       case "wc_sessionPropose":
         return this.onSessionProposeResponse(topic, payload, transportType);
@@ -1796,6 +1787,12 @@ export class Engine extends IEngine {
     const { params, id } = payload;
     try {
       const event = this.client.core.eventClient.getEvent({ topic });
+
+      if (this.client.events.listenerCount("session_proposal") === 0) {
+        console.warn("No listener for session_proposal event");
+        event?.setError(EVENT_CLIENT_PAIRING_ERRORS.proposal_listener_not_found);
+      }
+
       this.isValidConnect({ ...payload.params });
       const expiryTimestamp =
         params.expiryTimestamp || calcExpiry(ENGINE_RPC_OPTS.wc_sessionPropose.req.ttl);
@@ -1809,10 +1806,6 @@ export class Engine extends IEngine {
         metadata: proposal.proposer.metadata,
       });
 
-      if (this.client.events.listenerCount("session_proposal") === 0) {
-        console.warn("No listener for session_proposal event");
-        event?.setError(EVENT_CLIENT_PAIRING_ERRORS.proposal_listener_not_found);
-      }
       event?.addTrace(EVENT_CLIENT_PAIRING_TRACES.emit_session_proposal);
 
       this.client.events.emit("session_proposal", { id, params: proposal, verifyContext });

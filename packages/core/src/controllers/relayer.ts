@@ -77,7 +77,6 @@ export class Relayer extends IRelayer {
   private relayUrl: string;
   private projectId: string | undefined;
   private bundleId: string | undefined;
-  // private staleConnectionErrors = ["socket hang up", "stalled", "interrupted"];
   private hasExperiencedNetworkDisruption = false;
   private pingTimeout: NodeJS.Timeout | undefined;
   /**
@@ -432,10 +431,6 @@ export class Relayer extends IRelayer {
     }
   };
 
-  // private isConnectionStalled(message: string) {
-  //   return this.staleConnectionErrors.some((error) => message.includes(error));
-  // }
-
   private async createProvider() {
     if (this.provider.connection) {
       this.unregisterProviderListeners();
@@ -517,8 +512,6 @@ export class Relayer extends IRelayer {
     if (await this.shouldIgnoreMessageEvent(messageEvent)) {
       return;
     }
-    //@ts-expect-error
-    global?.setReceivedTopic?.(messageEvent.topic);
     this.events.emit(RELAYER_EVENTS.message, messageEvent);
     await this.recordMessageEvent(messageEvent);
   }
@@ -541,13 +534,7 @@ export class Relayer extends IRelayer {
   };
 
   private onDisconnectHandler = () => {
-    this.logger.warn(
-      {},
-      `Relayer disconnected 🛑, requests being sent: ${this.requestsInFlight.join(
-        ",",
-        // @ts-expect-error
-      )} - Publisher queue: ${this.publisher.queue.size}`,
-    );
+    this.logger.warn({}, `Relayer disconnected 🛑`);
     this.requestsInFlight = [];
     this.onProviderDisconnect();
   };

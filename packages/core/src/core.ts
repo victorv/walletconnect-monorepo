@@ -13,7 +13,7 @@ import { CoreTypes, ICore } from "@walletconnect/types";
 
 import {
   CORE_CONTEXT,
-  // CORE_DEFAULT,
+  CORE_DEFAULT,
   CORE_PROTOCOL,
   CORE_STORAGE_OPTIONS,
   CORE_VERSION,
@@ -74,7 +74,7 @@ export class Core extends ICore {
     this.customStoragePrefix = opts?.customStoragePrefix ? `:${opts.customStoragePrefix}` : "";
 
     const loggerOptions = getDefaultLoggerOptions({
-      level: "warn", // typeof opts?.logger === "string" && opts.logger ? opts.logger : CORE_DEFAULT.logger,
+      level: typeof opts?.logger === "string" && opts.logger ? opts.logger : CORE_DEFAULT.logger,
       name: CORE_CONTEXT,
     });
 

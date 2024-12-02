@@ -530,7 +530,7 @@ export class Subscriber extends ISubscriber {
     this.pending.forEach((params) => {
       pendingSubscriptions.push(params);
     });
-    // await this.batchFetchMessages(pendingSubscriptions);
+
     await this.batchSubscribe(pendingSubscriptions);
   };
 

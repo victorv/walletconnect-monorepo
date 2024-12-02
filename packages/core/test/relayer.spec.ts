@@ -149,7 +149,7 @@ describe("Relayer", () => {
       expect(subscriber.events.listenerCount(SUBSCRIBER_EVENTS.created)).to.eq(startNumListeners);
     });
 
-    it.skip("should throw when subscribe reaches a publish timeout", async () => {
+    it("should throw when subscribe reaches a publish timeout", async () => {
       relayer.subscriber.subscribeTimeout = 5_000;
       relayer.request = () => {
         return new Promise<void>((_, reject) => {
