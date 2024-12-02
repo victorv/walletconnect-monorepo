@@ -467,7 +467,7 @@ export class Subscriber extends ISubscriber {
       const numOfBatches = Math.ceil(this.cached.length / this.batchSubscribeTopicsLimit);
       for (let i = 0; i < numOfBatches; i++) {
         const batch = subs.splice(0, this.batchSubscribeTopicsLimit);
-        await this.batchFetchMessages(batch);
+        // await this.batchFetchMessages(batch);
         await this.batchSubscribe(batch);
       }
     }
@@ -503,6 +503,7 @@ export class Subscriber extends ISubscriber {
     this.onBatchSubscribe(result.map((id, i) => ({ ...subscriptions[i], id })));
   }
 
+  // @ts-ignore
   private async batchFetchMessages(subscriptions: SubscriberTypes.Params[]) {
     if (!subscriptions.length) return;
     this.logger.trace(`Fetching batch messages for ${subscriptions.length} subscriptions`);
@@ -535,7 +536,7 @@ export class Subscriber extends ISubscriber {
     this.pending.forEach((params) => {
       pendingSubscriptions.push(params);
     });
-    await this.batchFetchMessages(pendingSubscriptions);
+    // await this.batchFetchMessages(pendingSubscriptions);
     await this.batchSubscribe(pendingSubscriptions);
   };
 
