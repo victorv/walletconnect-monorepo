@@ -303,20 +303,26 @@ describe("Sign Client Persistence", () => {
         storageOptions: { database: db_a },
       });
       let lastAccountEvent: any;
-      let eventsReceived = 0;
-      const expectedEvents = 3;
-      await new Promise<void>((resolve) => {
-        clients.A.on("session_event", (event) => {
-          eventsReceived++;
-          lastAccountEvent = event.params.event.data;
-          if (eventsReceived === expectedEvents) {
+      await Promise.all([
+        new Promise<void>((resolve) => {
+          clients.A.on("session_update", (event) => {
             resolve();
-          }
-        });
-      });
+          });
+        }),
+        new Promise<void>((resolve) => {
+          clients.A.on("session_event", (event) => {
+            lastAccountEvent = event.params.event.data;
+            if (lastAccountEvent[0] === lastAccountsChangedValue[0]) {
+              resolve();
+            }
+          });
+        }),
+      ]);
+
+      await throttle(2_000);
+
       const session = clients.A.session.get(topic);
       expect(session).toBeDefined();
-
       expect(session.namespaces).toEqual(lastWalletSessionNamespacesValue);
       expect(lastAccountEvent).toEqual(lastAccountsChangedValue);
 

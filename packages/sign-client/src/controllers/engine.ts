@@ -693,12 +693,14 @@ export class Engine extends IEngine {
     await this.isValidEmit(params);
     const { topic, event, chainId } = params;
     const relayRpcId = getBigIntRpcId().toString() as any;
+    const clientRpcId = payloadId();
     await this.sendRequest({
       topic,
       method: "wc_sessionEvent",
       params: { event, chainId },
       throwOnFailedPublish: true,
       relayRpcId,
+      clientRpcId,
     });
   };
 
@@ -1737,7 +1739,6 @@ export class Engine extends IEngine {
     const { topic, payload, transportType } = event;
     const record = await this.client.core.history.get(topic, payload.id);
     const resMethod = record.request.method as JsonRpcTypes.WcMethod;
-
     // @ts-expect-error
     global?.setReceivedRequest?.(`${payload.id}:res:${resMethod}`);
     switch (resMethod) {
@@ -1957,7 +1958,7 @@ export class Engine extends IEngine {
       const lastSessionUpdateId = MemoryStore.get<number>(memoryKey);
 
       if (lastSessionUpdateId && this.isRequestOutOfSync(lastSessionUpdateId, id)) {
-        this.client.logger.info(`Discarding out of sync request - ${id}`);
+        this.client.logger.warn(`Discarding out of sync request - ${id}`);
         this.sendError({ id, topic, error: getSdkError("INVALID_UPDATE_REQUEST") });
         return;
       }
@@ -1990,7 +1991,7 @@ export class Engine extends IEngine {
   // compares the timestamp of the last processed request with the current request
   // client <-> client rpc ID is timestamp + 3 random digits
   private isRequestOutOfSync = (lastId: number, currentId: number) => {
-    return parseInt(currentId.toString().slice(0, -3)) <= parseInt(lastId.toString().slice(0, -3));
+    return currentId.toString().slice(0, -3) < lastId.toString().slice(0, -3);
   };
 
   private onSessionUpdateResponse: EnginePrivate["onSessionUpdateResponse"] = (_topic, payload) => {

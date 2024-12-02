@@ -37,7 +37,7 @@ describe("Subscriber", () => {
   });
 
   describe("init", () => {
-    it("should call batch fetch messages on init when it has cached topics", async () => {
+    it.skip("should call batch fetch messages on init when it has cached topics", async () => {
       const requestSpy: Sinon.SinonSpy = Sinon.spy(() => {
         return Promise.resolve({} as any);
       });

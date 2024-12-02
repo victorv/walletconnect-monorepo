@@ -18,7 +18,6 @@ import {
   getRelayProtocolName,
   createExpiringPromise,
   hashMessage,
-  isValidArray,
 } from "@walletconnect/utils";
 import {
   CORE_STORAGE_PREFIX,
@@ -241,7 +240,7 @@ export class Subscriber extends ISubscriber {
     this.logger.trace({ type: "payload", direction: "outgoing", request });
     const shouldThrow = opts?.internal?.throwOnFailedPublish;
     try {
-      const subId = hashMessage(topic + this.clientId);
+      const subId = this.getSubscriptionId(topic);
       // in link mode, allow the app to update its network state (i.e. active airplane mode) with small delay before attempting to subscribe
       if (opts?.transportType === TRANSPORT_TYPES.link_mode) {
         setTimeout(() => {
@@ -497,10 +496,12 @@ export class Subscriber extends ISubscriber {
   private async batchSubscribe(subscriptions: SubscriberTypes.Params[]) {
     if (!subscriptions.length) return;
 
-    const result = (await this.rpcBatchSubscribe(subscriptions)) as string[];
-    if (!isValidArray(result)) return;
-
-    this.onBatchSubscribe(result.map((id, i) => ({ ...subscriptions[i], id })));
+    this.onBatchSubscribe(
+      subscriptions.map((s) => ({ ...s, id: this.getSubscriptionId(s.topic) })),
+    );
+    setTimeout(async () => {
+      await this.rpcBatchSubscribe(subscriptions);
+    }, 1000);
   }
 
   // @ts-ignore
@@ -579,5 +580,9 @@ export class Subscriber extends ISubscriber {
         }
       }, this.pollingInterval);
     });
+  }
+
+  private getSubscriptionId(topic: string) {
+    return hashMessage(topic + this.clientId);
   }
 }
