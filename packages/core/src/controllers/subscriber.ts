@@ -45,7 +45,6 @@ export class Subscriber extends ISubscriber {
   private storagePrefix = CORE_STORAGE_PREFIX;
   private subscribeTimeout = toMiliseconds(ONE_MINUTE);
   private initialSubscribeTimeout = toMiliseconds(ONE_SECOND * 15);
-  private restartPromise: Promise<void> | undefined;
   private clientId: string;
   private batchSubscribeTopicsLimit = 500;
 
@@ -451,14 +450,8 @@ export class Subscriber extends ISubscriber {
   }
 
   private restart = async () => {
-    if (this.restartPromise) return;
-    this.restartPromise = new Promise<void>(async (resolve) => {
-      await this.restore();
-      await this.onRestart();
-      resolve();
-    });
-    await this.restartPromise;
-    this.restartPromise = undefined;
+    await this.restore();
+    await this.onRestart();
   };
 
   private async persist() {
@@ -472,13 +465,7 @@ export class Subscriber extends ISubscriber {
       const numOfBatches = Math.ceil(this.cached.length / this.batchSubscribeTopicsLimit);
       for (let i = 0; i < numOfBatches; i++) {
         const batch = subs.splice(0, this.batchSubscribeTopicsLimit);
-        // await this.batchFetchMessages(batch);
-        await new Promise<void>((resolve) => {
-          setTimeout(async () => {
-            await this.batchSubscribe(batch);
-            resolve();
-          }, toMiliseconds(ONE_SECOND));
-        });
+        await this.batchSubscribe(batch);
       }
     }
     this.events.emit(SUBSCRIBER_EVENTS.resubscribed);

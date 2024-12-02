@@ -252,7 +252,9 @@ export class SignClient extends ISignClient {
       await this.auth.init();
       await this.engine.init();
       this.logger.info(`SignClient Initialization Success`);
-      this.engine.processRelayMessageCache();
+      setTimeout(() => {
+        this.engine.processRelayMessageCache();
+      }, 1_000);
     } catch (error: any) {
       this.logger.info(`SignClient Initialization Failure`);
       this.logger.error(error.message);
