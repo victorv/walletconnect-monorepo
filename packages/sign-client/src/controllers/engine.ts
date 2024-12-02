@@ -1490,7 +1490,7 @@ export class Engine extends IEngine {
           .catch((error) => this.client.logger.error(error));
       }
       // @ts-expect-error
-      global.setSentRequest(payload.id + ":req");
+      global?.setSentRequest(payload.id + ":req");
     }
 
     return payload.id;
@@ -1539,7 +1539,7 @@ export class Engine extends IEngine {
           .catch((error) => this.client.logger.error(error));
       }
       // @ts-expect-error
-      global.setSentRequest(payload.id + ":res");
+      global?.setSentRequest(payload.id + ":res");
     }
 
     await this.client.core.history.resolve(payload);
@@ -1692,7 +1692,7 @@ export class Engine extends IEngine {
     const reqMethod = payload.method as JsonRpcTypes.WcMethod;
 
     // @ts-expect-error
-    global.setReceivedRequest(`${payload.id}:req:${reqMethod}`);
+    global?.setReceivedRequest(`${payload.id}:req:${reqMethod}`);
     if (this.shouldIgnorePairingRequest({ topic, requestMethod: reqMethod })) {
       return;
     }
@@ -1739,7 +1739,7 @@ export class Engine extends IEngine {
     const resMethod = record.request.method as JsonRpcTypes.WcMethod;
 
     // @ts-expect-error
-    global.setReceivedRequest(`${payload.id}:res:${resMethod}`);
+    global?.setReceivedRequest(`${payload.id}:res:${resMethod}`);
     switch (resMethod) {
       case "wc_sessionPropose":
         return this.onSessionProposeResponse(topic, payload, transportType);
