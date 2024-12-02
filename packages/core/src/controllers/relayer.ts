@@ -360,7 +360,19 @@ export class Relayer extends IRelayer {
               clearTimeout(this.reconnectTimeout);
               this.reconnectTimeout = undefined;
             });
-          await this.subscriber.start();
+          await new Promise(async (resolve, reject) => {
+            const onDisconnect = () => {
+              reject(new Error(`Connection interrupted while trying to subscribe`));
+            };
+            this.provider.once(RELAYER_PROVIDER_EVENTS.disconnect, onDisconnect);
+            await this.subscriber
+              .start()
+              .then(resolve)
+              .catch(reject)
+              .finally(() => {
+                this.provider.off(RELAYER_PROVIDER_EVENTS.disconnect, onDisconnect);
+              });
+          });
           this.hasExperiencedNetworkDisruption = false;
           resolve();
         });

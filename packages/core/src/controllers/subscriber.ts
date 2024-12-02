@@ -322,9 +322,6 @@ export class Subscriber extends ISubscriber {
         "rpcBatchSubscribe failed, please try again",
       );
       await subscribe;
-      subscriptions.forEach((s) => {
-        this.pending.delete(s.topic);
-      });
     } catch (err) {
       this.relayer.events.emit(RELAYER_EVENTS.connection_stalled);
     }
@@ -389,6 +386,7 @@ export class Subscriber extends ISubscriber {
     if (!subscriptions.length) return;
     subscriptions.forEach((subscription) => {
       this.setSubscription(subscription.id, { ...subscription });
+      this.pending.delete(subscription.topic);
     });
   }
 
@@ -493,10 +491,11 @@ export class Subscriber extends ISubscriber {
 
   private async batchSubscribe(subscriptions: SubscriberTypes.Params[]) {
     if (!subscriptions.length) return;
+
+    await this.rpcBatchSubscribe(subscriptions);
     this.onBatchSubscribe(
       subscriptions.map((s) => ({ ...s, id: this.getSubscriptionId(s.topic) })),
     );
-    await this.rpcBatchSubscribe(subscriptions);
   }
 
   // @ts-ignore
@@ -527,7 +526,6 @@ export class Subscriber extends ISubscriber {
     if (this.pending.size === 0 && (!this.initialized || !this.relayer.connected)) {
       return;
     }
-
     const pendingSubscriptions: SubscriberTypes.Params[] = [];
     this.pending.forEach((params) => {
       pendingSubscriptions.push(params);
