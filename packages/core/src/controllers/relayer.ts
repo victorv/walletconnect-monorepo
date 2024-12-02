@@ -381,8 +381,8 @@ export class Relayer extends IRelayer {
         const error = e as Error;
         this.logger.warn(error, error.message);
         this.hasExperiencedNetworkDisruption = true;
-        if (!this.isConnectionStalled(error.message)) {
-          throw e;
+        if (attempt >= 5) {
+          throw error;
         }
       } finally {
         this.connectionAttemptInProgress = false;
