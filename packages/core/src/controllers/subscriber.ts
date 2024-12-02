@@ -45,7 +45,7 @@ export class Subscriber extends ISubscriber {
   private storagePrefix = CORE_STORAGE_PREFIX;
   private subscribeTimeout = toMiliseconds(ONE_MINUTE);
   private initialSubscribeTimeout = toMiliseconds(ONE_SECOND * 15);
-  private restartInProgress = false;
+  private restartPromise: Promise<void> | undefined;
   private clientId: string;
   private batchSubscribeTopicsLimit = 500;
 
@@ -322,7 +322,10 @@ export class Subscriber extends ISubscriber {
         this.subscribeTimeout,
         "rpcBatchSubscribe failed, please try again",
       );
-      return await subscribe;
+      await subscribe;
+      subscriptions.forEach((s) => {
+        this.pending.delete(s.topic);
+      });
     } catch (err) {
       this.relayer.events.emit(RELAYER_EVENTS.connection_stalled);
     }
@@ -448,10 +451,14 @@ export class Subscriber extends ISubscriber {
   }
 
   private restart = async () => {
-    this.restartInProgress = true;
-    await this.restore();
-    await this.onRestart();
-    this.restartInProgress = false;
+    if (this.restartPromise) return;
+    this.restartPromise = new Promise<void>(async (resolve) => {
+      await this.restore();
+      await this.onRestart();
+      resolve();
+    });
+    await this.restartPromise;
+    this.restartPromise = undefined;
   };
 
   private async persist() {
@@ -470,7 +477,7 @@ export class Subscriber extends ISubscriber {
           setTimeout(async () => {
             await this.batchSubscribe(batch);
             resolve();
-          }, 1000);
+          }, toMiliseconds(ONE_SECOND));
         });
       }
     }
@@ -503,9 +510,6 @@ export class Subscriber extends ISubscriber {
       subscriptions.map((s) => ({ ...s, id: this.getSubscriptionId(s.topic) })),
     );
     await this.rpcBatchSubscribe(subscriptions);
-    subscriptions.forEach((s) => {
-      this.pending.delete(s.topic);
-    });
   }
 
   // @ts-ignore
@@ -574,16 +578,8 @@ export class Subscriber extends ISubscriber {
     if (!this.relayer.connected && !this.relayer.connecting) {
       await this.relayer.transportOpen();
     }
-    if (!this.restartInProgress) return;
-
-    await new Promise<void>((resolve) => {
-      const interval = setInterval(() => {
-        if (!this.restartInProgress) {
-          clearInterval(interval);
-          resolve();
-        }
-      }, this.pollingInterval);
-    });
+    if (!this.restartPromise) return;
+    await this.restartPromise;
   }
 
   private getSubscriptionId(topic: string) {
