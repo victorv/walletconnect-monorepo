@@ -578,8 +578,6 @@ export class Subscriber extends ISubscriber {
     if (!this.relayer.connected && !this.relayer.connecting) {
       await this.relayer.transportOpen();
     }
-    if (!this.restartPromise) return;
-    await this.restartPromise;
   }
 
   private getSubscriptionId(topic: string) {
