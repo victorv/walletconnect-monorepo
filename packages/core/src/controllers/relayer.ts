@@ -358,6 +358,7 @@ export class Relayer extends IRelayer {
               reject(e);
             })
             .finally(() => {
+              this.provider.off(RELAYER_PROVIDER_EVENTS.disconnect, onDisconnect);
               clearTimeout(this.reconnectTimeout);
               this.reconnectTimeout = undefined;
             });
@@ -380,7 +381,7 @@ export class Relayer extends IRelayer {
       } catch (e) {
         await this.subscriber.stop();
         const error = e as Error;
-        this.logger.warn(error, error.message);
+        this.logger.warn({}, error.message);
         this.hasExperiencedNetworkDisruption = true;
       } finally {
         this.connectionAttemptInProgress = false;
