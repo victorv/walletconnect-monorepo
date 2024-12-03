@@ -87,7 +87,7 @@ export class Relayer extends IRelayer {
   private reconnectTimeout: NodeJS.Timeout | undefined;
   private connectPromise: Promise<void> | undefined;
   private requestsInFlight: string[] = [];
-
+  private connectTimeout = toMiliseconds(ONE_SECOND * 15);
   constructor(opts: RelayerOptions) {
     super(opts);
     this.core = opts.core;
@@ -348,8 +348,10 @@ export class Relayer extends IRelayer {
           this.provider.once(RELAYER_PROVIDER_EVENTS.disconnect, onDisconnect);
 
           await createExpiringPromise(
-            this.provider.connect(),
-            15_000,
+            new Promise((resolve, reject) => {
+              this.provider.connect().then(resolve).catch(reject);
+            }),
+            this.connectTimeout,
             `Socket stalled when trying to connect to ${this.relayUrl}`,
           )
             .catch((e) => {
