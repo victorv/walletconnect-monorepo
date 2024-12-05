@@ -517,6 +517,8 @@ describe("Sign Client Integration", () => {
                 await clients.A.request({
                   topic,
                   ...TEST_REQUEST_PARAMS,
+                }).catch((e) => {
+                  console.error(e);
                 }),
             ),
           ]);
@@ -548,6 +550,8 @@ describe("Sign Client Integration", () => {
               clients.A.request({
                 topic,
                 ...TEST_REQUEST_PARAMS,
+              }).catch((e) => {
+                console.error(e);
               });
               resolve();
             }),
@@ -574,6 +578,8 @@ describe("Sign Client Integration", () => {
             clients.A.request({
               topic,
               ...TEST_REQUEST_PARAMS,
+            }).catch((e) => {
+              console.error(e);
             }),
           ]);
           // validate the first request is still pending
@@ -659,6 +665,8 @@ describe("Sign Client Integration", () => {
                     await clients.A.request({
                       topic: topicA,
                       ...TEST_REQUEST_PARAMS,
+                    }).catch((e) => {
+                      console.error(e);
                     }),
                 ),
                 clients.A.request({
