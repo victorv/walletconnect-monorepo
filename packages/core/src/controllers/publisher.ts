@@ -88,24 +88,22 @@ export class Publisher extends IPublisher {
               id,
               attestation: opts?.attestation,
             })
+              .then(resolve)
               .catch((e) => {
                 this.logger.warn(e, e?.message);
                 reject(e);
-              })
-              .then(resolve);
+              });
           }),
           this.initialPublishTimeout,
           `Failed initial publish, retrying.... id:${id} tag:${tag}`,
         );
-        await initialPublish
-          .then((result) => {
-            this.events.removeListener(RELAYER_EVENTS.publish, onPublish);
-            resolve(result);
-          })
-          .catch((e) => {
-            this.queue.set(id, { ...params, attempt: 1 });
-            this.logger.warn(e, e?.message);
-          });
+        try {
+          await initialPublish;
+          this.events.removeListener(RELAYER_EVENTS.publish, onPublish);
+        } catch (e) {
+          this.queue.set(id, { ...params, attempt: 1 });
+          this.logger.warn(e, (e as Error)?.message);
+        }
       });
       this.logger.trace({
         type: "method",

@@ -482,3 +482,7 @@ export function toBase64(input: string, removePadding = false): string {
 export function fromBase64(encodedString: string): string {
   return Buffer.from(encodedString, "base64").toString("utf-8");
 }
+
+export function sleep(ms: number) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
