@@ -13,11 +13,18 @@ import {
   SUBSCRIBER_EVENTS,
   TRANSPORT_TYPES,
 } from "../src";
-import { disconnectSocket, TEST_CORE_OPTIONS, throttle } from "./shared";
+import {
+  disconnectSocket,
+  TEST_MOBILE_APP_ID,
+  TEST_CORE_OPTIONS,
+  TEST_PROJECT_ID_MOBILE,
+  throttle,
+} from "./shared";
 import { ICore, IRelayer, ISubscriber } from "@walletconnect/types";
 import Sinon from "sinon";
 import { JsonRpcRequest } from "@walletconnect/jsonrpc-utils";
 import { createExpiringPromise, generateRandomBytes32, hashMessage } from "@walletconnect/utils";
+import * as utils from "@walletconnect/utils";
 
 describe("Relayer", () => {
   const logger = pino(getDefaultLoggerOptions({ level: CORE_DEFAULT.logger }));
@@ -341,6 +348,121 @@ describe("Relayer", () => {
         expect(relayer.connected).to.be.true;
         expect(wsConnection.url.startsWith(RELAYER_DEFAULT_RELAY_URL)).to.be.true;
       });
+    });
+  });
+  describe("packageName and bundleId validations", () => {
+    beforeEach(async () => {
+      core = new Core({ ...TEST_CORE_OPTIONS, projectId: TEST_PROJECT_ID_MOBILE });
+      relayer = core.relayer;
+      await core.start();
+    });
+
+    it("[Android] packageName included in Cloud Settings - should connect", async () => {
+      // Mock Android environment
+      vi.spyOn(utils, "isAndroid").mockReturnValue(true);
+      vi.spyOn(utils, "isIos").mockReturnValue(false);
+      vi.spyOn(utils, "getAppId").mockReturnValue(TEST_MOBILE_APP_ID);
+
+      relayer = new Relayer({
+        core,
+        relayUrl: TEST_CORE_OPTIONS.relayUrl,
+        projectId: TEST_PROJECT_ID_MOBILE,
+      });
+
+      await relayer.init();
+      await relayer.transportOpen();
+
+      // @ts-expect-error - accessing private property for testing
+      const wsUrl = relayer.provider.connection.url;
+      expect(wsUrl).to.include(`packageName=${TEST_MOBILE_APP_ID}`);
+      expect(relayer.connected).to.be.true;
+    });
+
+    it("[Android] send packageName undefined - should connect", async () => {
+      // Mock Android environment
+      vi.spyOn(utils, "isAndroid").mockReturnValue(true);
+      vi.spyOn(utils, "isIos").mockReturnValue(false);
+      vi.spyOn(utils, "getAppId").mockReturnValue(undefined);
+
+      relayer = new Relayer({
+        core,
+        relayUrl: TEST_CORE_OPTIONS.relayUrl,
+        projectId: TEST_PROJECT_ID_MOBILE,
+      });
+
+      await relayer.init();
+      await relayer.transportOpen();
+
+      // @ts-expect-error - accessing private property for testing
+      const wsUrl = relayer.provider.connection.url;
+      expect(wsUrl).not.to.include("packageName=");
+      expect(relayer.connected).to.be.true;
+    });
+
+    it("[iOS] bundleId included in Cloud Settings - should connect", async () => {
+      // Mock iOS environment
+      vi.spyOn(utils, "isAndroid").mockReturnValue(false);
+      vi.spyOn(utils, "isIos").mockReturnValue(true);
+      vi.spyOn(utils, "getAppId").mockReturnValue(TEST_MOBILE_APP_ID);
+
+      relayer = new Relayer({
+        core,
+        relayUrl: TEST_CORE_OPTIONS.relayUrl,
+        projectId: TEST_PROJECT_ID_MOBILE,
+      });
+
+      await relayer.init();
+      await relayer.transportOpen();
+
+      // @ts-expect-error - accessing private property for testing
+      const wsUrl = relayer.provider.connection.url;
+      expect(wsUrl).to.include(`bundleId=${TEST_MOBILE_APP_ID}`);
+    });
+
+    it("[iOS] send bundleId undefined - should connect", async () => {
+      // Mock iOS environment
+      vi.spyOn(utils, "isAndroid").mockReturnValue(false);
+      vi.spyOn(utils, "isIos").mockReturnValue(true);
+      vi.spyOn(utils, "getAppId").mockReturnValue(undefined);
+
+      relayer = new Relayer({
+        core,
+        relayUrl: TEST_CORE_OPTIONS.relayUrl,
+        projectId: TEST_PROJECT_ID_MOBILE,
+      });
+
+      await relayer.init();
+      await relayer.transportOpen();
+
+      // @ts-expect-error - accessing private property for testing
+      const wsUrl = relayer.provider.connection.url;
+      expect(wsUrl).not.to.include("bundleId=");
+      expect(relayer.connected).to.be.true;
+    });
+
+    it("[Web] packageName and bundleId not set - should connect", async () => {
+      // Mock non-mobile environment
+      vi.spyOn(utils, "isAndroid").mockReturnValue(false);
+      vi.spyOn(utils, "isIos").mockReturnValue(false);
+      vi.spyOn(utils, "getAppId").mockReturnValue(TEST_MOBILE_APP_ID);
+
+      relayer = new Relayer({
+        core,
+        relayUrl: TEST_CORE_OPTIONS.relayUrl,
+        projectId: TEST_PROJECT_ID_MOBILE,
+      });
+
+      await relayer.init();
+      await relayer.transportOpen();
+
+      // @ts-expect-error - accessing private property for testing
+      const wsUrl = relayer.provider.connection.url;
+      expect(wsUrl).not.to.include("packageName=");
+      expect(wsUrl).not.to.include("bundleId=");
+    });
+
+    afterEach(() => {
+      vi.restoreAllMocks();
     });
   });
 });
