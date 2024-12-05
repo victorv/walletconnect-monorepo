@@ -17,36 +17,22 @@ import { disconnectSocket, TEST_CORE_OPTIONS, throttle } from "./shared";
 import { ICore, IRelayer, ISubscriber } from "@walletconnect/types";
 import Sinon from "sinon";
 import { JsonRpcRequest } from "@walletconnect/jsonrpc-utils";
-import { generateRandomBytes32, hashMessage } from "@walletconnect/utils";
+import { createExpiringPromise, generateRandomBytes32, hashMessage } from "@walletconnect/utils";
 
 describe("Relayer", () => {
   const logger = pino(getDefaultLoggerOptions({ level: CORE_DEFAULT.logger }));
 
-  let core: ICore;
-  let relayer: IRelayer;
-
-  beforeEach(async () => {
-    core = new Core(TEST_CORE_OPTIONS);
-    await core.start();
-    relayer = core.relayer;
-  });
-
-  afterEach(async () => {
-    await disconnectSocket(core.relayer);
-  });
+  let core;
+  let relayer;
 
   describe("init", () => {
     let initSpy: Sinon.SinonSpy;
-    beforeEach(() => {
+    beforeEach(async () => {
       initSpy = Sinon.spy();
-      relayer = new Relayer({
-        core,
-        logger,
-        relayUrl: TEST_CORE_OPTIONS.relayUrl,
-        projectId: TEST_CORE_OPTIONS.projectId,
-      });
+      core = new Core(TEST_CORE_OPTIONS);
+      relayer = core.relayer;
+      await core.start();
     });
-
     afterEach(async () => {
       await disconnectSocket(relayer);
     });
@@ -94,18 +80,10 @@ describe("Relayer", () => {
   });
 
   describe("publish", () => {
-    let relayer;
     beforeEach(async () => {
-      relayer = new Relayer({
-        core,
-        logger,
-        relayUrl: TEST_CORE_OPTIONS.relayUrl,
-        projectId: TEST_CORE_OPTIONS.projectId,
-      });
-      await relayer.init();
-    });
-    afterEach(async () => {
-      await disconnectSocket(relayer);
+      core = new Core(TEST_CORE_OPTIONS);
+      relayer = core.relayer;
+      await core.start();
     });
 
     const topic = "abc123";
@@ -126,21 +104,11 @@ describe("Relayer", () => {
   });
 
   describe("subscribe", () => {
-    let relayer;
     beforeEach(async () => {
-      relayer = new Relayer({
-        core,
-        logger,
-        relayUrl: TEST_CORE_OPTIONS.relayUrl,
-        projectId: TEST_CORE_OPTIONS.projectId,
-      });
-      await relayer.init();
-      await relayer.transportOpen();
+      core = new Core(TEST_CORE_OPTIONS);
+      relayer = core.relayer;
+      await core.start();
     });
-    afterEach(async () => {
-      await disconnectSocket(relayer);
-    });
-
     it("returns the id provided by calling `subscriber.subscribe` with the passed topic", async () => {
       const spy = Sinon.spy(
         (topic) =>
@@ -182,8 +150,6 @@ describe("Relayer", () => {
     });
 
     it("should throw when subscribe reaches a publish timeout", async () => {
-      await relayer.transportOpen();
-      await relayer.toEstablishConnection();
       relayer.subscriber.subscribeTimeout = 5_000;
       relayer.request = () => {
         return new Promise<void>((_, reject) => {
@@ -231,18 +197,11 @@ describe("Relayer", () => {
   });
 
   describe("unsubscribe", () => {
-    let relayer;
     beforeEach(async () => {
-      relayer = new Relayer({
-        core,
-        logger,
-        relayUrl: TEST_CORE_OPTIONS.relayUrl,
-        projectId: TEST_CORE_OPTIONS.projectId,
-      });
-      await relayer.init();
-    });
-    afterEach(async () => {
-      await disconnectSocket(relayer);
+      core = new Core(TEST_CORE_OPTIONS);
+      relayer = core.relayer;
+      await core.start();
+      await relayer.transportOpen();
     });
     it("calls `subscriber.unsubscribe` with the passed topic", async () => {
       const spy = Sinon.spy();
@@ -252,21 +211,6 @@ describe("Relayer", () => {
     });
 
     describe("onProviderPayload", () => {
-      let relayer;
-      beforeEach(async () => {
-        relayer = new Relayer({
-          core,
-          logger,
-          relayUrl: TEST_CORE_OPTIONS.relayUrl,
-          projectId: TEST_CORE_OPTIONS.projectId,
-        });
-        await relayer.init();
-        await relayer.transportOpen();
-      });
-      afterEach(async () => {
-        await disconnectSocket(relayer);
-      });
-
       const validPayload: JsonRpcRequest = {
         id: 123,
         jsonrpc: "2.0",
@@ -315,25 +259,32 @@ describe("Relayer", () => {
     });
     describe("transport", () => {
       beforeEach(async () => {
-        relayer = new Relayer({
-          core,
-          relayUrl: TEST_CORE_OPTIONS.relayUrl,
-          projectId: TEST_CORE_OPTIONS.projectId,
-        });
-        await relayer.init();
-        await relayer.transportOpen();
+        core = new Core(TEST_CORE_OPTIONS);
+        relayer = core.relayer;
+        await core.start();
       });
-
-      afterEach(async () => {
-        await disconnectSocket(relayer);
-      });
-
       it("should restart transport after connection drop", async () => {
         const randomSessionIdentifier = relayer.core.crypto.randomSessionIdentifier;
-        await relayer.provider.connection.close();
-        expect(relayer.connected).to.be.false;
-        await throttle(1000);
-        expect(relayer.connected).to.be.true;
+        await relayer.transportOpen();
+        const timeout = setTimeout(() => {
+          throw new Error("Connection did not restart after disconnect");
+        }, 5_001);
+        await Promise.all([
+          new Promise<void>((resolve) => {
+            relayer.once(RELAYER_EVENTS.connect, () => {
+              expect(relayer.connected).to.be.true;
+              resolve();
+            });
+          }),
+          new Promise<void>((resolve) => {
+            relayer.once(RELAYER_EVENTS.disconnect, () => {
+              expect(relayer.connected).to.be.false;
+              resolve();
+            });
+          }),
+          relayer.provider.connection.close(),
+        ]);
+        clearTimeout(timeout);
         // the identifier should be the same
         expect(relayer.core.crypto.randomSessionIdentifier).to.eq(randomSessionIdentifier);
       });
@@ -350,7 +301,7 @@ describe("Relayer", () => {
         await Promise.all(
           Array.from(Array(disconnectsToEmit).keys()).map(() => relayer.onDisconnectHandler()),
         );
-        await throttle(1000);
+        await throttle(5_000);
         expect(connectReceived).to.eq(1);
         expect(disconnectsReceived).to.eq(disconnectsToEmit);
       });

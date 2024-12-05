@@ -273,11 +273,17 @@ export function createDelayedPromise<T>(
   let cacheResolve: undefined | ((value: T | PromiseLike<T>) => void);
   let cacheReject: undefined | ((value?: ErrorResponse) => void);
   let cacheTimeout: undefined | NodeJS.Timeout;
+  let result: Promise<Awaited<T>> | Promise<T> | undefined;
 
   const done = () =>
     new Promise<T>((promiseResolve, promiseReject) => {
+      if (result) {
+        return promiseResolve(result);
+      }
       cacheTimeout = setTimeout(() => {
-        promiseReject(new Error(expireErrorMessage));
+        const err = new Error(expireErrorMessage);
+        result = Promise.reject(err);
+        promiseReject(err);
       }, timeout);
       cacheResolve = promiseResolve;
       cacheReject = promiseReject;
@@ -286,6 +292,7 @@ export function createDelayedPromise<T>(
     if (cacheTimeout && cacheResolve) {
       clearTimeout(cacheTimeout);
       cacheResolve(value as T);
+      result = Promise.resolve(value) as Promise<Awaited<T>>;
     }
   };
   const reject = (value?: ErrorResponse) => {
@@ -494,4 +501,8 @@ export function toBase64(input: string, removePadding = false): string {
 
 export function fromBase64(encodedString: string): string {
   return Buffer.from(encodedString, "base64").toString("utf-8");
+}
+
+export function sleep(ms: number) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }
