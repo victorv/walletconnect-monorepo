@@ -378,7 +378,7 @@ describe("Relayer", () => {
       expect(relayer.connected).to.be.true;
     });
 
-    it("[Android] send packageName undefined - should connect", async () => {
+    it("[Android] packageName undefined - should connect", async () => {
       // Mock Android environment
       vi.spyOn(utils, "isAndroid").mockReturnValue(true);
       vi.spyOn(utils, "isIos").mockReturnValue(false);
@@ -397,6 +397,27 @@ describe("Relayer", () => {
       const wsUrl = relayer.provider.connection.url;
       expect(wsUrl).not.to.include("packageName=");
       expect(relayer.connected).to.be.true;
+    });
+
+    it("[Android] packageName not included in Cloud Settings - should fail", async () => {
+      // Mock Android environment
+      vi.spyOn(utils, "isAndroid").mockReturnValue(true);
+      vi.spyOn(utils, "isIos").mockReturnValue(false);
+      vi.spyOn(utils, "getAppId").mockReturnValue("com.example.wrong");
+
+      relayer = new Relayer({
+        core,
+        relayUrl: TEST_CORE_OPTIONS.relayUrl,
+        projectId: TEST_PROJECT_ID_MOBILE,
+      });
+
+      await relayer.init();
+      await relayer.transportOpen();
+      relayer.provider.on(RELAYER_PROVIDER_EVENTS.payload, (payload) => {
+        expect(payload.error.message).to.include("Unauthorized: origin not allowed");
+      });
+
+      await throttle(1000);
     });
 
     it("[iOS] bundleId included in Cloud Settings - should connect", async () => {
@@ -419,7 +440,7 @@ describe("Relayer", () => {
       expect(wsUrl).to.include(`bundleId=${TEST_MOBILE_APP_ID}`);
     });
 
-    it("[iOS] send bundleId undefined - should connect", async () => {
+    it("[iOS] bundleId undefined - should connect", async () => {
       // Mock iOS environment
       vi.spyOn(utils, "isAndroid").mockReturnValue(false);
       vi.spyOn(utils, "isIos").mockReturnValue(true);
@@ -438,6 +459,27 @@ describe("Relayer", () => {
       const wsUrl = relayer.provider.connection.url;
       expect(wsUrl).not.to.include("bundleId=");
       expect(relayer.connected).to.be.true;
+    });
+
+    it("[iOS] bundleId not included in Cloud Settings - should fail", async () => {
+      // Mock iOS environment
+      vi.spyOn(utils, "isAndroid").mockReturnValue(false);
+      vi.spyOn(utils, "isIos").mockReturnValue(true);
+      vi.spyOn(utils, "getAppId").mockReturnValue("com.example.wrong");
+
+      relayer = new Relayer({
+        core,
+        relayUrl: TEST_CORE_OPTIONS.relayUrl,
+        projectId: TEST_PROJECT_ID_MOBILE,
+      });
+
+      await relayer.init();
+      await relayer.transportOpen();
+      relayer.provider.on(RELAYER_PROVIDER_EVENTS.payload, (payload) => {
+        expect(payload.error.message).to.include("Unauthorized: origin not allowed");
+      });
+
+      await throttle(1000);
     });
 
     it("[Web] packageName and bundleId not set - should connect", async () => {
