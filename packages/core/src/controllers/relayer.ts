@@ -19,7 +19,7 @@ import {
   Logger,
 } from "@walletconnect/logger";
 import { RelayJsonRpc } from "@walletconnect/relay-api";
-import { FIVE_MINUTES, ONE_SECOND, THIRTY_SECONDS, toMiliseconds } from "@walletconnect/time";
+import { FIVE_MINUTES, FIVE_SECONDS, THIRTY_SECONDS, toMiliseconds } from "@walletconnect/time";
 import {
   ICore,
   IMessageTracker,
@@ -83,7 +83,7 @@ export class Relayer extends IRelayer {
    * the relay pings the client 30 seconds after the last message was received
    * meaning if we don't receive a message in 30 seconds, the connection can be considered dead
    */
-  private heartBeatTimeout = toMiliseconds(THIRTY_SECONDS + ONE_SECOND);
+  private heartBeatTimeout = toMiliseconds(THIRTY_SECONDS + FIVE_SECONDS);
   private reconnectTimeout: NodeJS.Timeout | undefined;
   private connectPromise: Promise<void> | undefined;
   private requestsInFlight: string[] = [];
@@ -410,7 +410,7 @@ export class Relayer extends IRelayer {
       //@ts-expect-error - Types are divergent between the node and browser WS API
       if (this.provider?.connection?.socket) {
         //@ts-expect-error
-        this.provider?.connection?.socket?.once("ping", () => {
+        this.provider?.connection?.socket?.on("ping", () => {
           this.resetPingTimeout();
         });
       }
