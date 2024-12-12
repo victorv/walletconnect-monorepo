@@ -19,7 +19,13 @@ import {
   Logger,
 } from "@walletconnect/logger";
 import { RelayJsonRpc } from "@walletconnect/relay-api";
-import { FIVE_MINUTES, ONE_SECOND, FIVE_SECONDS, THIRTY_SECONDS, toMiliseconds } from "@walletconnect/time";
+import {
+  FIVE_MINUTES,
+  ONE_SECOND,
+  FIVE_SECONDS,
+  THIRTY_SECONDS,
+  toMiliseconds,
+} from "@walletconnect/time";
 import {
   ICore,
   IMessageTracker,
