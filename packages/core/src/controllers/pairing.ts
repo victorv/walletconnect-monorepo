@@ -35,7 +35,7 @@ import {
   isJsonRpcResult,
   isJsonRpcError,
 } from "@walletconnect/jsonrpc-utils";
-import { FIVE_MINUTES, THIRTY_DAYS, toMiliseconds } from "@walletconnect/time";
+import { FIVE_MINUTES, ONE_MINUTE, toMiliseconds } from "@walletconnect/time";
 import EventEmitter from "events";
 import {
   PAIRING_CONTEXT,
@@ -187,7 +187,7 @@ export class Pairing implements IPairing {
 
   public activate: IPairing["activate"] = async ({ topic }) => {
     this.isInitialized();
-    const expiry = calcExpiry(THIRTY_DAYS);
+    const expiry = calcExpiry(ONE_MINUTE);
     this.core.expirer.set(topic, expiry);
     await this.pairings.update(topic, { active: true, expiry });
   };
