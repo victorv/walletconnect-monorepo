@@ -35,7 +35,7 @@ import {
   isJsonRpcResult,
   isJsonRpcError,
 } from "@walletconnect/jsonrpc-utils";
-import { FIVE_MINUTES, ONE_MINUTE, toMiliseconds } from "@walletconnect/time";
+import { FIVE_MINUTES, toMiliseconds } from "@walletconnect/time";
 import EventEmitter from "events";
 import {
   PAIRING_CONTEXT,
@@ -187,7 +187,7 @@ export class Pairing implements IPairing {
 
   public activate: IPairing["activate"] = async ({ topic }) => {
     this.isInitialized();
-    const expiry = calcExpiry(ONE_MINUTE);
+    const expiry = calcExpiry(FIVE_MINUTES);
     this.core.expirer.set(topic, expiry);
     await this.pairings.update(topic, { active: true, expiry });
   };
@@ -195,6 +195,7 @@ export class Pairing implements IPairing {
   public ping: IPairing["ping"] = async (params) => {
     this.isInitialized();
     await this.isValidPing(params);
+    this.logger.warn("ping() is deprecated and will be removed in the next major release.");
     const { topic } = params;
     if (this.pairings.keys.includes(topic)) {
       const id = await this.sendRequest(topic, "wc_pairingPing", {});
