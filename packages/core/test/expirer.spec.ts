@@ -1,14 +1,43 @@
+import { pino, getDefaultLoggerOptions } from "@walletconnect/logger";
 import { expect, describe, it } from "vitest";
 import { calcExpiry, formatExpirerTarget } from "@walletconnect/utils";
-
-import { Core, EXPIRER_EVENTS } from "../src";
-import { disconnectSocket, TEST_CORE_OPTIONS } from "./shared";
 import { HEARTBEAT_EVENTS } from "@walletconnect/heartbeat";
 
+import {
+  Core,
+  Expirer,
+  EXPIRER_EVENTS,
+  CORE_STORAGE_PREFIX,
+  EXPIRER_STORAGE_VERSION,
+  EXPIRER_CONTEXT,
+  CORE_DEFAULT,
+} from "../src";
+import { disconnectSocket, TEST_CORE_OPTIONS } from "./shared";
+
 describe("Expirer", () => {
+  const logger = pino(getDefaultLoggerOptions({ level: CORE_DEFAULT.logger }));
+
+  describe("storageKey", () => {
+    it("provides the expected default `storageKey` format", () => {
+      const core = new Core(TEST_CORE_OPTIONS);
+      const expirer = new Expirer(core, logger);
+      expect(expirer.storageKey).to.equal(
+        CORE_STORAGE_PREFIX + EXPIRER_STORAGE_VERSION + "//" + EXPIRER_CONTEXT,
+      );
+    });
+    it("provides the expected custom `storageKey` format", () => {
+      const core = new Core({ ...TEST_CORE_OPTIONS, customStoragePrefix: "test" });
+      const expirer = new Expirer(core, logger);
+      expect(expirer.storageKey).to.equal(
+        CORE_STORAGE_PREFIX + EXPIRER_STORAGE_VERSION + ":test" + "//" + EXPIRER_CONTEXT,
+      );
+    });
+  });
+
   it("should expire payload", async () => {
     const core = new Core(TEST_CORE_OPTIONS);
     await core.start();
+    await core.relayer.transportOpen();
     // confirm the expirer is empty
     expect(core.expirer.length).to.eq(0);
     // set a payload

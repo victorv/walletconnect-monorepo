@@ -14,9 +14,13 @@ import {
   validateEncoding,
   validateDecoding,
   isTypeOneEnvelope,
+  isTypeTwoEnvelope,
+  encodeTypeTwoEnvelope,
+  decodeTypeTwoEnvelope,
   deserialize,
   decodeTypeByte,
   BASE16,
+  BASE64,
 } from "@walletconnect/utils";
 import { toString } from "uint8arrays";
 
@@ -26,6 +30,7 @@ import { KeyChain } from "./keychain";
 export class Crypto implements ICrypto {
   public name = CRYPTO_CONTEXT;
   public keychain: ICrypto["keychain"];
+  public readonly randomSessionIdentifier = generateRandomBytes32();
 
   private initialized = false;
 
@@ -69,7 +74,7 @@ export class Crypto implements ICrypto {
     this.isInitialized();
     const seed = await this.getClientSeed();
     const keyPair = relayAuth.generateKeyPair(seed);
-    const sub = generateRandomBytes32();
+    const sub = this.randomSessionIdentifier;
     const ttl = CRYPTO_JWT_TTL;
     const jwt = await relayAuth.signJWT(sub, aud, ttl, keyPair);
     return jwt;
@@ -107,6 +112,11 @@ export class Crypto implements ICrypto {
     this.isInitialized();
     const params = validateEncoding(opts);
     const message = safeJsonStringify(payload);
+
+    if (isTypeTwoEnvelope(params)) {
+      return encodeTypeTwoEnvelope(message, opts?.encoding);
+    }
+
     if (isTypeOneEnvelope(params)) {
       const selfPublicKey = params.senderPublicKey;
       const peerPublicKey = params.receiverPublicKey;
@@ -114,13 +124,17 @@ export class Crypto implements ICrypto {
     }
     const symKey = this.getSymKey(topic);
     const { type, senderPublicKey } = params;
-    const result = encrypt({ type, symKey, message, senderPublicKey });
+    const result = encrypt({ type, symKey, message, senderPublicKey, encoding: opts?.encoding });
     return result;
   };
 
   public decode: ICrypto["decode"] = async (topic, encoded, opts) => {
     this.isInitialized();
     const params = validateDecoding(encoded, opts);
+    if (isTypeTwoEnvelope(params)) {
+      const message = decodeTypeTwoEnvelope(encoded, opts?.encoding);
+      return safeJsonParse(message);
+    }
     if (isTypeOneEnvelope(params)) {
       const selfPublicKey = params.receiverPublicKey;
       const peerPublicKey = params.senderPublicKey;
@@ -128,7 +142,7 @@ export class Crypto implements ICrypto {
     }
     try {
       const symKey = this.getSymKey(topic);
-      const message = decrypt({ symKey, encoded });
+      const message = decrypt({ symKey, encoded, encoding: opts?.encoding });
       const payload = safeJsonParse(message);
       return payload;
     } catch (error) {
@@ -139,13 +153,16 @@ export class Crypto implements ICrypto {
     }
   };
 
-  public getPayloadType: ICrypto["getPayloadType"] = (encoded) => {
-    const deserialized = deserialize(encoded);
+  public getPayloadType: ICrypto["getPayloadType"] = (encoded, encoding = BASE64) => {
+    const deserialized = deserialize({ encoded, encoding });
     return decodeTypeByte(deserialized.type);
   };
 
-  public getPayloadSenderPublicKey: ICrypto["getPayloadSenderPublicKey"] = (encoded) => {
-    const deserialized = deserialize(encoded);
+  public getPayloadSenderPublicKey: ICrypto["getPayloadSenderPublicKey"] = (
+    encoded,
+    encoding = BASE64,
+  ) => {
+    const deserialized = deserialize({ encoded, encoding });
     return deserialized.senderPublicKey
       ? toString(deserialized.senderPublicKey, BASE16)
       : undefined;

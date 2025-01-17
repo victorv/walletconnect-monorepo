@@ -13,6 +13,8 @@ import { PairingTypes } from "../core/pairing";
 import { JsonRpcTypes } from "./jsonrpc";
 import { EventEmitter } from "events";
 import { PendingRequestTypes } from "./pendingRequest";
+import { AuthTypes } from "./auth";
+import { CryptoTypes } from "../core";
 
 export declare namespace EngineTypes {
   type Event =
@@ -43,11 +45,16 @@ export declare namespace EngineTypes {
     topic: string;
     symKey: string;
     relay: RelayerTypes.ProtocolOptions;
+    methods?: string[];
+    expiryTimestamp?: number;
   }
 
   interface EventCallback<T extends JsonRpcRequest | JsonRpcResponse> {
     topic: string;
     payload: T;
+    transportType?: RelayerTypes.MessageEvent["transportType"];
+    attestation?: string;
+    encryptedId?: string;
   }
 
   interface ConnectParams {
@@ -66,6 +73,7 @@ export declare namespace EngineTypes {
     id: number;
     namespaces: SessionTypes.Namespaces;
     sessionProperties?: ProposalTypes.SessionProperties;
+    sessionConfig?: SessionTypes.SessionConfig;
     relayProtocol?: string;
   }
 
@@ -122,9 +130,24 @@ export declare namespace EngineTypes {
 
   type AcknowledgedPromise = Promise<{ acknowledged: () => Promise<void> }>;
 
+  type SessionAuthenticateResponsePromise = {
+    uri: string;
+    response: () => Promise<AuthTypes.AuthenticateResponseResult>;
+  };
+
   interface RpcOpts {
-    req: RelayerTypes.PublishOptions;
-    res: RelayerTypes.PublishOptions;
+    req: RelayerTypes.PublishOptions & {
+      ttl: number;
+    };
+    res: RelayerTypes.PublishOptions & {
+      ttl: number;
+    };
+    reject?: RelayerTypes.PublishOptions & {
+      ttl: number;
+    };
+    autoReject?: RelayerTypes.PublishOptions & {
+      ttl: number;
+    };
   }
 
   type RpcOptsMap = Record<JsonRpcTypes.WcMethod, RpcOpts>;
@@ -162,6 +185,7 @@ export interface EnginePrivate {
     relayRpcId?: number;
     clientRpcId?: number;
     throwOnFailedPublish?: boolean;
+    appLink?: string;
   }): Promise<number>;
 
   sendResult<M extends JsonRpcTypes.WcMethod>(args: {
@@ -169,23 +193,48 @@ export interface EnginePrivate {
     topic: string;
     result: JsonRpcTypes.Results[M];
     throwOnFailedPublish?: boolean;
+    encodeOpts?: CryptoTypes.EncodeOptions;
+    appLink?: string;
   }): Promise<void>;
 
-  sendError(id: number, topic: string, error: JsonRpcTypes.Error): Promise<void>;
+  sendError(params: {
+    id: number;
+    topic: string;
+    error: JsonRpcTypes.Error;
+    encodeOpts?: CryptoTypes.EncodeOptions;
+    rpcOpts?: RelayerTypes.PublishOptions;
+    appLink?: string;
+  }): Promise<void>;
 
-  onRelayEventRequest(event: EngineTypes.EventCallback<JsonRpcRequest>): void;
+  onRelayEventRequest(event: EngineTypes.EventCallback<JsonRpcRequest>): Promise<void>;
 
   onRelayEventResponse(event: EngineTypes.EventCallback<JsonRpcResponse>): Promise<void>;
 
   onRelayEventUnknownPayload(event: EngineTypes.EventCallback<any>): Promise<void>;
 
-  deleteSession(topic: string, expirerHasDeleted?: boolean): Promise<void>;
+  shouldIgnorePairingRequest(params: { topic: string; requestMethod: string }): boolean;
+
+  deleteSession(params: {
+    topic: string;
+    expirerHasDeleted?: boolean;
+    id?: number;
+    emitEvent?: boolean;
+  }): Promise<void>;
 
   deleteProposal(id: number, expirerHasDeleted?: boolean): Promise<void>;
 
   setExpiry(topic: string, expiry: number): Promise<void>;
 
   setProposal(id: number, proposal: ProposalTypes.Struct): Promise<void>;
+
+  setAuthRequest(
+    id: number,
+    params: {
+      request: AuthTypes.SessionAuthenticateRequest;
+      pairingTopic: string;
+      transportType?: RelayerTypes.MessageEvent["transportType"];
+    },
+  ): Promise<void>;
 
   setPendingSessionRequest(pendingRequest: PendingRequestTypes.Struct): Promise<void>;
 
@@ -195,18 +244,27 @@ export interface EnginePrivate {
     expirerHasDeleted?: boolean,
   ): Promise<void>;
 
+  deletePendingAuthRequest(
+    id: number,
+    reason: ErrorResponse,
+    expirerHasDeleted?: boolean,
+  ): Promise<void>;
+
   cleanupDuplicatePairings(session: SessionTypes.Struct): Promise<void>;
 
   cleanup(): Promise<void>;
 
-  onSessionProposeRequest(
-    topic: string,
-    payload: JsonRpcRequest<JsonRpcTypes.RequestParams["wc_sessionPropose"]>,
-  ): Promise<void>;
+  onSessionProposeRequest(params: {
+    topic: string;
+    payload: JsonRpcRequest<JsonRpcTypes.RequestParams["wc_sessionPropose"]>;
+    attestation?: string;
+    encryptedId?: string;
+  }): Promise<void>;
 
   onSessionProposeResponse(
     topic: string,
     payload: JsonRpcResult<JsonRpcTypes.Results["wc_sessionPropose"]> | JsonRpcError,
+    transportType?: RelayerTypes.MessageEvent["transportType"],
   ): Promise<void>;
 
   onSessionSettleRequest(
@@ -254,10 +312,13 @@ export interface EnginePrivate {
     payload: JsonRpcRequest<JsonRpcTypes.RequestParams["wc_sessionDelete"]>,
   ): Promise<void>;
 
-  onSessionRequest(
-    topic: string,
-    payload: JsonRpcRequest<JsonRpcTypes.RequestParams["wc_sessionRequest"]>,
-  ): Promise<void>;
+  onSessionRequest(params: {
+    topic: string;
+    payload: JsonRpcRequest<JsonRpcTypes.RequestParams["wc_sessionRequest"]>;
+    transportType?: RelayerTypes.MessageEvent["transportType"];
+    attestation?: string;
+    encryptedId?: string;
+  }): Promise<void>;
 
   onSessionRequestResponse(
     topic: string,
@@ -268,6 +329,19 @@ export interface EnginePrivate {
     topic: string,
     payload: JsonRpcRequest<JsonRpcTypes.RequestParams["wc_sessionEvent"]>,
   ): Promise<void>;
+
+  onSessionAuthenticateRequest(params: {
+    topic: string;
+    payload: JsonRpcRequest<JsonRpcTypes.RequestParams["wc_sessionAuthenticate"]>;
+    transportType?: RelayerTypes.MessageEvent["transportType"];
+    attestation?: string;
+    encryptedId?: string;
+  }): Promise<void>;
+
+  onSessionAuthenticateResponse(
+    topic: string,
+    payload: JsonRpcResult<JsonRpcTypes.Results["wc_sessionAuthenticate"]> | JsonRpcError,
+  ): void;
 
   // -- Validators ---------------------------------------------------- //
   isValidConnect(params: EngineTypes.ConnectParams): Promise<void>;
@@ -329,4 +403,22 @@ export abstract class IEngine {
   public abstract find: (params: EngineTypes.FindParams) => SessionTypes.Struct[];
 
   public abstract getPendingSessionRequests: () => PendingRequestTypes.Struct[];
+
+  public abstract authenticate: (
+    params: AuthTypes.SessionAuthenticateParams,
+    walletUniversalLink?: string,
+  ) => Promise<EngineTypes.SessionAuthenticateResponsePromise>;
+
+  public abstract approveSessionAuthenticate: (
+    params: AuthTypes.ApproveSessionAuthenticateParams,
+  ) => Promise<{ session: SessionTypes.Struct | undefined }>;
+
+  public abstract formatAuthMessage: (params: {
+    request: AuthTypes.BaseAuthRequestParams;
+    iss: string;
+  }) => string;
+
+  public abstract rejectSessionAuthenticate(params: EngineTypes.RejectParams): Promise<void>;
+
+  public abstract processRelayMessageCache(): void;
 }

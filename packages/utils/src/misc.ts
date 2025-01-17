@@ -9,7 +9,7 @@ import {
 import { getDocument, getLocation, getNavigator } from "@walletconnect/window-getters";
 import { getWindowMetadata } from "@walletconnect/window-metadata";
 import { ErrorResponse } from "@walletconnect/jsonrpc-utils";
-import * as qs from "query-string";
+import { IKeyValueStorage } from "@walletconnect/keyvaluestorage";
 
 // -- constants -----------------------------------------//
 export const REACT_NATIVE_PRODUCT = "ReactNative";
@@ -47,8 +47,26 @@ export function isReactNative(): boolean {
   return !getDocument() && !!getNavigator() && navigator.product === REACT_NATIVE_PRODUCT;
 }
 
+export function isAndroid(): boolean {
+  return (
+    isReactNative() &&
+    typeof global !== "undefined" &&
+    typeof (global as any)?.Platform !== "undefined" &&
+    (global as any)?.Platform.OS === "android"
+  );
+}
+
+export function isIos(): boolean {
+  return (
+    isReactNative() &&
+    typeof global !== "undefined" &&
+    typeof (global as any)?.Platform !== "undefined" &&
+    (global as any)?.Platform.OS === "ios"
+  );
+}
+
 export function isBrowser(): boolean {
-  return !isNode() && !!getNavigator();
+  return !isNode() && !!getNavigator() && !!getDocument();
 }
 
 export function getEnvironment(): string {
@@ -58,16 +76,39 @@ export function getEnvironment(): string {
   return ENV_MAP.unknown;
 }
 
+export function getAppId(): string | undefined {
+  try {
+    if (
+      isReactNative() &&
+      typeof global !== "undefined" &&
+      typeof (global as any)?.Application !== "undefined"
+    ) {
+      return (global as any).Application?.applicationId;
+    }
+    return undefined;
+  } catch {
+    return undefined;
+  }
+}
+
 // -- query -----------------------------------------------//
 
-export function appendToQueryString(queryString: string, newQueryParams: any): string {
-  let queryParams = qs.parse(queryString);
+export function appendToQueryString(
+  queryString: string,
+  newQueryParams: Record<string, any>,
+): string {
+  const urlSearchParams = new URLSearchParams(queryString);
 
-  queryParams = { ...queryParams, ...newQueryParams };
+  for (const key of Object.keys(newQueryParams).sort()) {
+    if (newQueryParams.hasOwnProperty(key)) {
+      const value = newQueryParams[key];
+      if (value !== undefined) {
+        urlSearchParams.set(key, value);
+      }
+    }
+  }
 
-  queryString = qs.stringify(queryParams);
-
-  return queryString;
+  return urlSearchParams.toString();
 }
 
 // -- metadata ----------------------------------------------//
@@ -136,10 +177,19 @@ export function formatRelayRpcUrl({
   auth,
   projectId,
   useOnCloseEvent,
+  bundleId,
+  packageName,
 }: RelayerTypes.RpcUrlParams) {
   const splitUrl = relayUrl.split("?");
   const ua = formatUA(protocol, version, sdkVersion);
-  const params = { auth, ua, projectId, useOnCloseEvent: useOnCloseEvent || undefined };
+  const params = {
+    auth,
+    ua,
+    projectId,
+    useOnCloseEvent: useOnCloseEvent || undefined,
+    packageName: packageName || undefined,
+    bundleId: bundleId || undefined,
+  };
   const queryString = appendToQueryString(splitUrl[1] || "", params);
   return splitUrl[0] + "?" + queryString;
 }
@@ -230,11 +280,17 @@ export function createDelayedPromise<T>(
   let cacheResolve: undefined | ((value: T | PromiseLike<T>) => void);
   let cacheReject: undefined | ((value?: ErrorResponse) => void);
   let cacheTimeout: undefined | NodeJS.Timeout;
+  let result: Promise<Awaited<T>> | Promise<T> | undefined;
 
   const done = () =>
     new Promise<T>((promiseResolve, promiseReject) => {
+      if (result) {
+        return promiseResolve(result);
+      }
       cacheTimeout = setTimeout(() => {
-        promiseReject(new Error(expireErrorMessage));
+        const err = new Error(expireErrorMessage);
+        result = Promise.reject(err);
+        promiseReject(err);
       }, timeout);
       cacheResolve = promiseResolve;
       cacheReject = promiseReject;
@@ -243,6 +299,7 @@ export function createDelayedPromise<T>(
     if (cacheTimeout && cacheResolve) {
       clearTimeout(cacheTimeout);
       cacheResolve(value as T);
+      result = Promise.resolve(value) as Promise<Awaited<T>>;
     }
   };
   const reject = (value?: ErrorResponse) => {
@@ -345,22 +402,18 @@ export async function handleDeeplinkRedirect({
     if (!wcDeepLink) return;
 
     const json = typeof wcDeepLink === "string" ? JSON.parse(wcDeepLink) : wcDeepLink;
-    let deeplink = json?.href;
-
+    const deeplink = json?.href;
     if (typeof deeplink !== "string") return;
-
-    if (deeplink.endsWith("/")) deeplink = deeplink.slice(0, -1);
-
-    const link = `${deeplink}/wc?requestId=${id}&sessionTopic=${topic}`;
-
+    const link = formatDeeplinkUrl(deeplink, id, topic);
     const env = getEnvironment();
 
     if (env === ENV_MAP.browser) {
-      if (link.startsWith("https://")) {
-        window.open(link, "_blank", "noreferrer noopener");
-      } else {
-        window.open(link, "_self", "noreferrer noopener");
+      if (!getDocument()?.hasFocus()) {
+        console.warn("Document does not have focus, skipping deeplink.");
+        return;
       }
+
+      openDeeplink(link);
     } else if (env === ENV_MAP.reactNative) {
       // global.Linking is set by react-native-compat
       if (typeof (global as any)?.Linking !== "undefined") {
@@ -372,4 +425,106 @@ export async function handleDeeplinkRedirect({
     // eslint-disable-next-line no-console
     console.error(err);
   }
+}
+
+export function formatDeeplinkUrl(deeplink: string, requestId: number, sessionTopic: string) {
+  const payload = `requestId=${requestId}&sessionTopic=${sessionTopic}`;
+  if (deeplink.endsWith("/")) deeplink = deeplink.slice(0, -1);
+  let link = `${deeplink}`;
+  if (deeplink.startsWith("https://t.me")) {
+    const startApp = deeplink.includes("?") ? "&startapp=" : "?startapp=";
+    link = `${link}${startApp}${toBase64(payload, true)}`;
+  } else {
+    link = `${link}/wc?${payload}`;
+  }
+  return link;
+}
+
+export function openDeeplink(url: string) {
+  let target = "_self";
+  if (isIframe()) {
+    target = "_top";
+  } else if (isTelegram() || url.startsWith("https://") || url.startsWith("http://")) {
+    target = "_blank";
+  }
+
+  window.open(url, target, "noreferrer noopener");
+}
+
+export async function getDeepLink(storage: IKeyValueStorage, key: string) {
+  let link: string | undefined = "";
+  try {
+    if (isBrowser()) {
+      link = localStorage.getItem(key) as string;
+      if (link) return link;
+    }
+    link = await storage.getItem(key);
+  } catch (err) {
+    // eslint-disable-next-line no-console
+    console.error(err);
+  }
+  return link;
+}
+
+export function getCommonValuesInArrays<T = string | number | boolean>(arr1: T[], arr2: T[]): T[] {
+  return arr1.filter((value) => arr2.includes(value));
+}
+
+export function getSearchParamFromURL(url: string, param: any) {
+  const include = url.includes(param);
+  if (!include) return null;
+  const params = url.split(/([&,?,=])/);
+  const index = params.indexOf(param);
+  const value = params[index + 2];
+  return value;
+}
+
+export function uuidv4() {
+  if (typeof crypto !== "undefined" && crypto?.randomUUID) {
+    return crypto.randomUUID();
+  }
+
+  return "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/gu, (c) => {
+    const r = (Math.random() * 16) | 0;
+    const v = c === "x" ? r : (r & 0x3) | 0x8;
+
+    return v.toString(16);
+  });
+}
+
+export function isTestRun() {
+  return typeof process !== "undefined" && process.env.IS_VITEST === "true";
+}
+
+export function isTelegram() {
+  return (
+    typeof window !== "undefined" &&
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (Boolean((window as any).TelegramWebviewProxy) ||
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      Boolean((window as any).Telegram) ||
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      Boolean((window as any).TelegramWebviewProxyProto))
+  );
+}
+
+export function isIframe() {
+  try {
+    return window.self !== window.top;
+  } catch {
+    return false;
+  }
+}
+
+export function toBase64(input: string, removePadding = false): string {
+  const encoded = Buffer.from(input).toString("base64");
+  return removePadding ? encoded.replace(/[=]/g, "") : encoded;
+}
+
+export function fromBase64(encodedString: string): string {
+  return Buffer.from(encodedString, "base64").toString("utf-8");
+}
+
+export function sleep(ms: number) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }

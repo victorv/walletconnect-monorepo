@@ -6,6 +6,8 @@ import { IPendingRequest } from "./pendingRequest";
 import { IProposal, ProposalTypes } from "./proposal";
 import { ISession, SessionTypes } from "./session";
 import { Verify } from "../core/verify";
+import { IAuth, AuthTypes } from "./auth";
+import { RelayerTypes } from "../core";
 
 export declare namespace SignClientTypes {
   type Event =
@@ -18,7 +20,9 @@ export declare namespace SignClientTypes {
     | "session_request"
     | "session_request_sent"
     | "session_event"
-    | "proposal_expire";
+    | "session_authenticate"
+    | "proposal_expire"
+    | "session_request_expire";
 
   interface BaseEventArgs<T = unknown> {
     id: number;
@@ -37,7 +41,7 @@ export declare namespace SignClientTypes {
     session_request: {
       verifyContext: Verify.Context;
     } & BaseEventArgs<{
-      request: { method: string; params: any };
+      request: { method: string; params: any; expiryTimestamp?: number };
       chainId: string;
     }>;
     session_request_sent: {
@@ -50,14 +54,24 @@ export declare namespace SignClientTypes {
       event: { name: string; data: any };
       chainId: string;
     }>;
+    session_authenticate: {
+      verifyContext: Verify.Context;
+      transportType?: RelayerTypes.TransportType;
+    } & BaseEventArgs<AuthTypes.AuthRequestEventArgs>;
     proposal_expire: { id: number };
+    session_request_expire: { id: number };
   }
 
   type Metadata = CoreTypes.Metadata;
 
+  type SignConfig = {
+    disableRequestQueue?: boolean;
+  };
+
   interface Options extends CoreTypes.Options {
     core?: ICore;
     metadata?: Metadata;
+    signConfig?: SignConfig;
   }
 }
 
@@ -109,6 +123,8 @@ export abstract class ISignClient {
   public abstract session: ISession;
   public abstract proposal: IProposal;
   public abstract pendingRequest: IPendingRequest;
+  public abstract auth: IAuth;
+  public abstract signConfig?: SignClientTypes.SignConfig;
 
   constructor(public opts?: SignClientTypes.Options) {}
 
@@ -125,4 +141,8 @@ export abstract class ISignClient {
   public abstract disconnect: IEngine["disconnect"];
   public abstract find: IEngine["find"];
   public abstract getPendingSessionRequests: IEngine["getPendingSessionRequests"];
+  public abstract authenticate: IEngine["authenticate"];
+  public abstract formatAuthMessage: IEngine["formatAuthMessage"];
+  public abstract approveSessionAuthenticate: IEngine["approveSessionAuthenticate"];
+  public abstract rejectSessionAuthenticate: IEngine["rejectSessionAuthenticate"];
 }

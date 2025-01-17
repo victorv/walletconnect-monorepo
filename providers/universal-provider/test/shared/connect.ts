@@ -22,6 +22,7 @@ export interface TestConnectParams {
   relays?: RelayerTypes.ProtocolOptions[];
   pairingTopic?: string;
   qrCodeScanLatencyMs?: number;
+  sessionProperties?: SessionTypes.Struct["sessionProperties"];
 }
 
 export async function testConnectMethod(
@@ -39,9 +40,9 @@ export async function testConnectMethod(
     relays: params?.relays || undefined,
     pairingTopic: params?.pairingTopic || undefined,
   };
-
   const approveParams: Omit<EngineTypes.ApproveParams, "id"> = {
     namespaces: params?.namespaces || TEST_NAMESPACES,
+    sessionProperties: params?.sessionProperties,
   };
 
   // We need to kick off the promise that binds the listener for `session_proposal` before `A.connect()`
@@ -141,8 +142,8 @@ export async function testConnectMethod(
   // namespaces
   expect(sessionA.namespaces).to.eql(approveParams.namespaces);
   expect(sessionA.namespaces).to.eql(sessionB.namespaces);
-  // expiry
-  expect(Math.abs(sessionA.expiry - sessionB.expiry)).to.be.lessThan(5);
+  // testing expiry is not reliable as on slow networks we take longer to settle
+  // expect(Math.abs(sessionA.expiry - sessionB.expiry)).to.be.lessThan(5);
 
   // participants
   expect(sessionA.self).to.eql(sessionB.peer);

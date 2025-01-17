@@ -10,3 +10,5 @@ export * from "./keychain";
 export * from "./expirer";
 export * from "./pairing";
 export * from "./verify";
+export * from "./echo";
+export * from "./events";

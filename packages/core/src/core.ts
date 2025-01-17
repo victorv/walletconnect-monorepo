@@ -1,16 +1,16 @@
 import { EventEmitter } from "events";
 
-import KeyValueStorage from "@walletconnect/keyvaluestorage";
 import { HeartBeat } from "@walletconnect/heartbeat";
+import KeyValueStorage from "@walletconnect/keyvaluestorage";
 import {
+  ChunkLoggerController,
   generateChildLogger,
+  generatePlatformLogger,
   getDefaultLoggerOptions,
   getLoggerContext,
-  pino,
 } from "@walletconnect/logger";
 import { CoreTypes, ICore } from "@walletconnect/types";
 
-import { Crypto, Relayer, Pairing, JsonRpcHistory, Expirer, Verify } from "./controllers";
 import {
   CORE_CONTEXT,
   CORE_DEFAULT,
@@ -18,8 +18,20 @@ import {
   CORE_STORAGE_OPTIONS,
   CORE_VERSION,
   RELAYER_DEFAULT_RELAY_URL,
+  TRANSPORT_TYPES,
   WALLETCONNECT_CLIENT_ID,
+  WALLETCONNECT_LINK_MODE_APPS,
 } from "./constants";
+import {
+  Crypto,
+  EchoClient,
+  EventClient,
+  Expirer,
+  JsonRpcHistory,
+  Pairing,
+  Relayer,
+  Verify,
+} from "./controllers";
 
 export class Core extends ICore {
   public readonly protocol = CORE_PROTOCOL;
@@ -28,6 +40,7 @@ export class Core extends ICore {
   public readonly name: ICore["name"] = CORE_CONTEXT;
   public readonly relayUrl: ICore["relayUrl"];
   public readonly projectId: ICore["projectId"];
+  public readonly customStoragePrefix: ICore["customStoragePrefix"];
   public events: ICore["events"] = new EventEmitter();
   public logger: ICore["logger"];
   public heartbeat: ICore["heartbeat"];
@@ -38,8 +51,12 @@ export class Core extends ICore {
   public expirer: ICore["expirer"];
   public pairing: ICore["pairing"];
   public verify: ICore["verify"];
+  public echoClient: ICore["echoClient"];
+  public linkModeSupportedApps: ICore["linkModeSupportedApps"];
+  public eventClient: ICore["eventClient"];
 
   private initialized = false;
+  private logChunkController: ChunkLoggerController | null;
 
   static async init(opts?: CoreTypes.Options) {
     const core = new Core(opts);
@@ -52,13 +69,36 @@ export class Core extends ICore {
 
   constructor(opts?: CoreTypes.Options) {
     super(opts);
-
     this.projectId = opts?.projectId;
     this.relayUrl = opts?.relayUrl || RELAYER_DEFAULT_RELAY_URL;
-    const logger =
-      typeof opts?.logger !== "undefined" && typeof opts?.logger !== "string"
-        ? opts.logger
-        : pino(getDefaultLoggerOptions({ level: opts?.logger || CORE_DEFAULT.logger }));
+    this.customStoragePrefix = opts?.customStoragePrefix ? `:${opts.customStoragePrefix}` : "";
+
+    const loggerOptions = getDefaultLoggerOptions({
+      level: typeof opts?.logger === "string" && opts.logger ? opts.logger : CORE_DEFAULT.logger,
+      name: CORE_CONTEXT,
+    });
+
+    const { logger, chunkLoggerController } = generatePlatformLogger({
+      opts: loggerOptions,
+      maxSizeInBytes: opts?.maxLogBlobSizeInBytes,
+      loggerOverride: opts?.logger,
+    });
+
+    this.logChunkController = chunkLoggerController;
+
+    if (this.logChunkController?.downloadLogsBlobInBrowser) {
+      // @ts-ignore
+      window.downloadLogsBlobInBrowser = async () => {
+        // Have to null check twice becquse there is no guarantee
+        // this.logChunkController.downloadLogsBlobInBrowser is always truthy
+        if (this.logChunkController?.downloadLogsBlobInBrowser) {
+          this.logChunkController?.downloadLogsBlobInBrowser({
+            clientId: await this.crypto.getClientId(),
+          });
+        }
+      };
+    }
+
     this.logger = generateChildLogger(logger, this.name);
     this.heartbeat = new HeartBeat();
     this.crypto = new Crypto(this, this.logger, opts?.keychain);
@@ -74,7 +114,10 @@ export class Core extends ICore {
       projectId: this.projectId,
     });
     this.pairing = new Pairing(this, this.logger);
-    this.verify = new Verify(this.projectId || "", this.logger);
+    this.verify = new Verify(this, this.logger, this.storage);
+    this.echoClient = new EchoClient(this.projectId || "", this.logger);
+    this.linkModeSupportedApps = [];
+    this.eventClient = new EventClient(this, this.logger, opts?.telemetryEnabled);
   }
 
   get context() {
@@ -86,6 +129,18 @@ export class Core extends ICore {
   public async start() {
     if (this.initialized) return;
     await this.initialize();
+  }
+
+  public async getLogsBlob() {
+    return this.logChunkController?.logsToBlob({
+      clientId: await this.crypto.getClientId(),
+    });
+  }
+
+  public async addLinkModeSupportedApp(universalLink: string) {
+    if (this.linkModeSupportedApps.includes(universalLink)) return;
+    this.linkModeSupportedApps.push(universalLink);
+    await this.storage.setItem(WALLETCONNECT_LINK_MODE_APPS, this.linkModeSupportedApps);
   }
 
   // ---------- Events ----------------------------------------------- //
@@ -106,6 +161,29 @@ export class Core extends ICore {
     return this.events.removeListener(name, listener);
   };
 
+  // ---------- Link-mode ----------------------------------------------- //
+
+  public dispatchEnvelope = ({
+    topic,
+    message,
+    sessionExists,
+  }: {
+    topic: string;
+    message: string;
+    sessionExists: boolean;
+  }) => {
+    if (!topic || !message) return;
+
+    const payload = {
+      topic,
+      message,
+      publishedAt: Date.now(),
+      transportType: TRANSPORT_TYPES.link_mode,
+    };
+
+    this.relayer.onLinkMessageEvent(payload, { sessionExists });
+  };
+
   // ---------- Private ----------------------------------------------- //
 
   private async initialize() {
@@ -117,6 +195,8 @@ export class Core extends ICore {
       await this.relayer.init();
       await this.heartbeat.init();
       await this.pairing.init();
+      this.linkModeSupportedApps = (await this.storage.getItem(WALLETCONNECT_LINK_MODE_APPS)) || [];
+
       this.initialized = true;
       this.logger.info(`Core Initialization Success`);
     } catch (error) {

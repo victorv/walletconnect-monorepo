@@ -13,7 +13,8 @@ import {
 
 import { getChainId, getGlobal, getRpcUrl } from "../utils";
 import EventEmitter from "events";
-import { PROVIDER_EVENTS } from "../constants";
+import { BUNDLER_URL, PROVIDER_EVENTS } from "../constants";
+import { formatJsonRpcRequest } from "@walletconnect/jsonrpc-utils";
 
 class Eip155Provider implements IProvider {
   public name = "eip155";
@@ -35,14 +36,18 @@ class Eip155Provider implements IProvider {
   public async request<T = unknown>(args: RequestParams): Promise<T> {
     switch (args.request.method) {
       case "eth_requestAccounts":
-        return this.getAccounts() as any;
+        return this.getAccounts() as unknown as T;
       case "eth_accounts":
-        return this.getAccounts() as any;
+        return this.getAccounts() as unknown as T;
       case "wallet_switchEthereumChain": {
-        return await this.handleSwitchChain(args);
+        return (await this.handleSwitchChain(args)) as unknown as T;
       }
       case "eth_chainId":
-        return parseInt(this.getDefaultChain()) as any;
+        return parseInt(this.getDefaultChain()) as unknown as T;
+      case "wallet_getCapabilities":
+        return (await this.getCapabilities(args)) as unknown as T;
+      case "wallet_getCallsStatus":
+        return (await this.getCallStatus(args)) as unknown as T;
       default:
         break;
     }
@@ -167,6 +172,82 @@ class Eip155Provider implements IProvider {
 
   private isChainApproved(chainId: number): boolean {
     return this.namespace.chains.includes(`${this.name}:${chainId}`);
+  }
+
+  private async getCapabilities(args: RequestParams) {
+    // if capabilities are stored in the session, return them, else send the request to the wallet
+    const address = args.request?.params?.[0];
+    if (!address) throw new Error("Missing address parameter in `wallet_getCapabilities` request");
+    const session = this.client.session.get(args.topic);
+    const sessionCapabilities = session?.sessionProperties?.capabilities || {};
+    if (sessionCapabilities?.[address]) {
+      return sessionCapabilities?.[address];
+    }
+    // intentionally omit catching errors/rejection during `request` to allow the error to bubble up
+    const capabilities = await this.client.request(args as EngineTypes.RequestParams);
+    try {
+      // update the session with the capabilities so they can be retrieved later
+      await this.client.session.update(args.topic, {
+        sessionProperties: {
+          ...(session.sessionProperties || {}),
+          capabilities: {
+            ...(sessionCapabilities || {}),
+            [address]: capabilities,
+          } as any, // by spec sessionProperties should be <string, string> but here are used as objects?
+        },
+      });
+    } catch (error) {
+      console.warn("Failed to update session with capabilities", error);
+    }
+    return capabilities;
+  }
+
+  private async getCallStatus(args: RequestParams) {
+    const session = this.client.session.get(args.topic);
+    const bundlerName = session.sessionProperties?.bundler_name;
+    if (bundlerName) {
+      const bundlerUrl = this.getBundlerUrl(args.chainId, bundlerName);
+      try {
+        return await this.getUserOperationReceipt(bundlerUrl, args);
+      } catch (error) {
+        console.warn("Failed to fetch call status from bundler", error, bundlerUrl);
+      }
+    }
+    const customUrl = session.sessionProperties?.bundler_url;
+    if (customUrl) {
+      try {
+        return await this.getUserOperationReceipt(customUrl, args);
+      } catch (error) {
+        console.warn("Failed to fetch call status from custom bundler", error, customUrl);
+      }
+    }
+
+    if (this.namespace.methods.includes(args.request.method)) {
+      return await this.client.request(args as EngineTypes.RequestParams);
+    }
+
+    throw new Error("Fetching call status not approved by the wallet.");
+  }
+
+  private async getUserOperationReceipt(bundlerUrl: string, args: RequestParams) {
+    const url = new URL(bundlerUrl);
+    const response = await fetch(url, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(
+        formatJsonRpcRequest("eth_getUserOperationReceipt", [args.request.params?.[0]]),
+      ),
+    });
+    if (!response.ok) {
+      throw new Error(`Failed to fetch user operation receipt - ${response.status}`);
+    }
+    return await response.json();
+  }
+
+  private getBundlerUrl(cap2ChainId: string, bundlerName: string) {
+    return `${BUNDLER_URL}?projectId=${this.client.core.projectId}&chainId=${cap2ChainId}&bundler=${bundlerName}`;
   }
 }
 

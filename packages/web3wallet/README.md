@@ -1,3 +1,7 @@
+# Deprecation Warning ⚠️⚠️⚠️
+
+Web3Wallet package is deprecated. Please use [`@reown/walletkit`](https://github.com/reown-com/reown-walletkit-js) instead. [Migration guide link](https://docs.reown.com/walletkit/upgrade/from-web3wallet-web)
+
 # @walletconnect/web3wallet
 
 ## Description
@@ -70,7 +74,7 @@ await web3wallet.disconnectSession({
 5. Responding to Sign Session Requests
 
 ```javascript
-web3wallet.on("session_request", (event) => {
+web3wallet.on("session_request", async (event) => {
   const { id, method, params } = event.request;
   await web3wallet.respondSessionRequest({ id, result: response });
 });

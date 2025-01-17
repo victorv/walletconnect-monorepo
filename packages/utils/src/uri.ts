@@ -1,5 +1,5 @@
-import * as qs from "query-string";
 import { EngineTypes, RelayerTypes } from "@walletconnect/types";
+import { fromBase64 } from "./misc";
 
 // -- uri -------------------------------------------------- //
 
@@ -17,19 +17,40 @@ export function parseRelayParams(params: any, delimiter = "-"): RelayerTypes.Pro
 }
 
 export function parseUri(str: string): EngineTypes.UriParameters {
+  if (!str.includes("wc:")) {
+    const parsed = fromBase64(str);
+    if (parsed?.includes("wc:")) {
+      str = parsed;
+    }
+  }
+
+  // remove android schema prefix
+  str = str.includes("wc://") ? str.replace("wc://", "") : str;
+  // remove ios schema prefix
+  str = str.includes("wc:") ? str.replace("wc:", "") : str;
   const pathStart: number = str.indexOf(":");
   const pathEnd: number | undefined = str.indexOf("?") !== -1 ? str.indexOf("?") : undefined;
   const protocol: string = str.substring(0, pathStart);
   const path: string = str.substring(pathStart + 1, pathEnd);
   const requiredValues = path.split("@");
   const queryString: string = typeof pathEnd !== "undefined" ? str.substring(pathEnd) : "";
-  const queryParams = qs.parse(queryString);
+  const urlSearchParams = new URLSearchParams(queryString);
+  const queryParams: Record<string, string> = {};
+  urlSearchParams.forEach((value, key) => {
+    queryParams[key] = value;
+  });
+  const methods =
+    typeof queryParams.methods === "string" ? queryParams.methods.split(",") : undefined;
   const result = {
     protocol,
     topic: parseTopic(requiredValues[0]),
     version: parseInt(requiredValues[1], 10),
     symKey: queryParams.symKey as string,
     relay: parseRelayParams(queryParams),
+    methods,
+    expiryTimestamp: queryParams.expiryTimestamp
+      ? parseInt(queryParams.expiryTimestamp as string, 10)
+      : undefined,
   };
   return result;
 }
@@ -51,11 +72,31 @@ export function formatRelayParams(relay: RelayerTypes.ProtocolOptions, delimiter
 }
 
 export function formatUri(params: EngineTypes.UriParameters): string {
-  return (
-    `${params.protocol}:${params.topic}@${params.version}?` +
-    qs.stringify({
-      symKey: params.symKey,
-      ...formatRelayParams(params.relay),
-    })
-  );
+  const urlSearchParams = new URLSearchParams();
+
+  const relayParams = formatRelayParams(params.relay);
+  Object.keys(relayParams)
+    .sort()
+    .forEach((key) => {
+      urlSearchParams.set(key, relayParams[key]);
+    });
+
+  urlSearchParams.set("symKey", params.symKey);
+  if (params.expiryTimestamp)
+    urlSearchParams.set("expiryTimestamp", params.expiryTimestamp.toString());
+
+  if (params.methods) {
+    urlSearchParams.set("methods", params.methods.join(","));
+  }
+
+  const queryString = urlSearchParams.toString();
+  return `${params.protocol}:${params.topic}@${params.version}?${queryString}`;
+}
+
+export function getLinkModeURL(
+  universalLink: string,
+  topic: string,
+  encodedEnvelope: string,
+): string {
+  return `${universalLink}?wc_ev=${encodedEnvelope}&topic=${topic}`;
 }

@@ -1,8 +1,9 @@
 import { expect, describe, it, beforeEach, afterEach } from "vitest";
 import { ICore } from "@walletconnect/types";
-import { Core, CORE_PROTOCOL, CORE_VERSION } from "../src";
+import { Core, CORE_PROTOCOL, CORE_VERSION, PAIRING_EVENTS, SUBSCRIBER_EVENTS } from "../src";
 import { TEST_CORE_OPTIONS, disconnectSocket, waitForEvent } from "./shared";
-import { generateRandomBytes32 } from "@walletconnect/utils";
+import { calcExpiry, generateRandomBytes32, parseUri, toBase64 } from "@walletconnect/utils";
+import { FIVE_MINUTES } from "@walletconnect/time";
 
 const createCoreClients: () => Promise<{ coreA: ICore; coreB: ICore }> = async () => {
   const coreA = new Core(TEST_CORE_OPTIONS);
@@ -53,6 +54,39 @@ describe("Pairing", () => {
       expect(coreA.pairing.getPairings()[0].active).toBe(false);
       expect(coreB.pairing.getPairings()[0].active).toBe(false);
     });
+    it("can pair via base64 provided URI", async () => {
+      const { uri } = await coreA.pairing.create();
+      const encodedUri = toBase64(uri, true);
+      await coreB.pairing.pair({ uri: encodedUri });
+
+      expect(coreA.pairing.pairings.keys.length).toBe(1);
+      expect(coreB.pairing.pairings.keys.length).toBe(1);
+      expect(coreA.pairing.pairings.keys).to.deep.equal(coreB.pairing.pairings.keys);
+      expect(coreA.pairing.getPairings()[0].active).toBe(false);
+      expect(coreB.pairing.getPairings()[0].active).toBe(false);
+    });
+
+    it("can pair via provided android deeplink URI", async () => {
+      const { uri } = await coreA.pairing.create();
+      await coreB.pairing.pair({ uri: `wc://${uri}` });
+
+      expect(coreA.pairing.pairings.keys.length).toBe(1);
+      expect(coreB.pairing.pairings.keys.length).toBe(1);
+      expect(coreA.pairing.pairings.keys).to.deep.equal(coreB.pairing.pairings.keys);
+      expect(coreA.pairing.getPairings()[0].active).toBe(false);
+      expect(coreB.pairing.getPairings()[0].active).toBe(false);
+    });
+
+    it("can pair via provided iOS deeplink URI", async () => {
+      const { uri } = await coreA.pairing.create();
+      await coreB.pairing.pair({ uri: `wc:${uri}` });
+
+      expect(coreA.pairing.pairings.keys.length).toBe(1);
+      expect(coreB.pairing.pairings.keys.length).toBe(1);
+      expect(coreA.pairing.pairings.keys).to.deep.equal(coreB.pairing.pairings.keys);
+      expect(coreA.pairing.getPairings()[0].active).toBe(false);
+      expect(coreB.pairing.getPairings()[0].active).toBe(false);
+    });
 
     it("can auto-activate the pairing on pair step", async () => {
       const { uri } = await coreA.pairing.create();
@@ -88,8 +122,12 @@ describe("Pairing", () => {
       const inactivePairing = coreA.pairing.pairings.get(topic);
       expect(inactivePairing.active).toBe(false);
       await coreA.pairing.activate({ topic });
-      expect(coreA.pairing.pairings.get(topic).active).toBe(true);
-      expect(coreA.pairing.pairings.get(topic).expiry > inactivePairing.expiry).toBe(true);
+      const activePairing = coreA.pairing.pairings.get(topic);
+      expect(activePairing.active).toBe(true);
+      // inactive pairing should have an expiry of 5 minutes
+      expect(inactivePairing.expiry).to.be.approximately(calcExpiry(FIVE_MINUTES), 5);
+      // active pairing should still have an expiry of 5 minutes
+      expect(activePairing.expiry).to.be.approximately(calcExpiry(FIVE_MINUTES), 5);
     });
   });
 
@@ -116,6 +154,22 @@ describe("Pairing", () => {
       expect(coreA.pairing.pairings.get(topic).peerMetadata).toBeUndefined();
       await coreA.pairing.updateMetadata({ topic, metadata: mockMetadata });
       expect(coreA.pairing.pairings.get(topic).peerMetadata).toEqual(mockMetadata);
+    });
+  });
+
+  describe("formatUriFromPairing", () => {
+    it("should generate pairing uri from pairing", async () => {
+      let generatedUri = "";
+      coreA.pairing.events.once("pairing_create", (payload) => {
+        generatedUri = coreA.pairing.formatUriFromPairing(payload);
+      });
+      const { uri } = await coreA.pairing.create({
+        methods: ["eth_sendTransaction", "personal_sign"],
+      });
+      expect(generatedUri).to.be.eq(uri);
+      const parsedUri = parseUri(uri);
+      const parsedGeneratedUri = parseUri(generatedUri);
+      expect(parsedGeneratedUri).to.deep.equal(parsedUri);
     });
   });
 
@@ -182,6 +236,23 @@ describe("Pairing", () => {
         await expect(coreA.pairing.pair({ uri: undefined })).rejects.toThrowError(
           "Missing or invalid. pair() uri: undefined",
         );
+      });
+      it("throws when uri missing relay protocol is provided", async () => {
+        // Using v1 pairing URI as it is unsupported
+        const v1PairingUri =
+          "wc:e9d6ef98-6b65-490b-8726-a21e1afb181d@1?bridge=https%3A%2F%2Fwalletconnect.com&key=73f096cb97aaee97b3d9871ced35fdce1668e652db3d39423ea6cd22e14528bf";
+        await expect(
+          coreA.pairing.pair({
+            uri: v1PairingUri,
+          }),
+        ).rejects.toThrowError("Missing or invalid. pair() uri#relay-protocol");
+      });
+      it("throws when uri missing relay protocol is provided", async () => {
+        await expect(
+          coreA.pairing.pair({
+            uri: "wc:e9d6ef98-6b65-490b-8726-a21e1afb181d@1?bridge=https%3A%2F%2Fwalletconnect.com&relay-protocol=irn",
+          }),
+        ).rejects.toThrowError("Missing or invalid. pair() uri#symKey");
       });
     });
 
@@ -253,6 +324,39 @@ describe("Pairing", () => {
           "No matching key. pairing topic doesn't exist: none",
         );
       });
+    });
+  });
+  describe("events", () => {
+    it("should emit 'pairing_create' event", async () => {
+      let pairingCreatedEvent = false;
+      coreB.pairing.events.on(PAIRING_EVENTS.create, () => (pairingCreatedEvent = true));
+      const { uri } = await coreA.pairing.create();
+      coreB.pairing.pair({ uri });
+      await waitForEvent(() => pairingCreatedEvent);
+    });
+    it("should store pairing before subscribing to its topic", async () => {
+      let pairingCreatedEvent = false;
+      let pairingCreatedEventTime = 0;
+      let subscriptionCreatedEvent = false;
+      let subscriptionCreatedEventTime = 0;
+      const { uri } = await coreA.pairing.create();
+      const { topic } = parseUri(uri);
+      coreB.pairing.events.on(PAIRING_EVENTS.create, () => {
+        pairingCreatedEventTime = performance.now();
+        pairingCreatedEvent = true;
+      });
+
+      coreB.relayer.subscriber.events.on(SUBSCRIBER_EVENTS.created, () => {
+        subscriptionCreatedEventTime = performance.now();
+        subscriptionCreatedEvent = true;
+      });
+
+      coreB.pairing.pair({ uri });
+      await waitForEvent(() => pairingCreatedEvent);
+      await waitForEvent(() => subscriptionCreatedEvent);
+      expect(coreB.pairing.pairings.keys.length).toBe(1);
+      expect(coreB.pairing.pairings.values[0].topic).toEqual(topic);
+      expect(subscriptionCreatedEventTime).toBeGreaterThan(pairingCreatedEventTime);
     });
   });
 });
