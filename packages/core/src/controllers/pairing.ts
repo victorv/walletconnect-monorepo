@@ -192,6 +192,9 @@ export class Pairing implements IPairing {
     await this.pairings.update(topic, { active: true, expiry });
   };
 
+  /**
+   * @deprecated Ping will be removed in the next major release.
+   */
   public ping: IPairing["ping"] = async (params) => {
     this.isInitialized();
     await this.isValidPing(params);
