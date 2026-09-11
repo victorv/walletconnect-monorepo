@@ -1,5 +1,7 @@
 # @walletconnect/react-native-compat
 
+## 2.24.1
+
 ## 2.24.0
 
 ### Patch Changes
